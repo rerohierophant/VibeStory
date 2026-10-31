@@ -1,0 +1,123 @@
+@import 'tailwindcss';
+@import '../../../../design/tokens.css';
+
+/* 设计令牌映射：只引用 design/tokens.css 中的变量，不重复定义颜色 */
+@theme inline {
+  --color-base: var(--vibe-bg);
+  --color-panel: var(--vibe-panel);
+  --color-panel-2: var(--vibe-panel-2);
+  --color-hover: var(--vibe-panel-hover);
+  --color-stroke: var(--vibe-stroke);
+  --color-dash: var(--vibe-dash);
+  --color-accent: var(--vibe-accent);
+  --color-accent-soft: var(--vibe-accent-soft);
+  --color-accent-ink: var(--vibe-accent-ink);
+  --color-fg: var(--vibe-text);
+  --color-muted: var(--vibe-text-secondary);
+  --color-success: var(--vibe-success);
+  --color-success-soft: var(--vibe-success-soft);
+  --color-warning: var(--vibe-warning);
+  --color-error: var(--vibe-error);
+  --color-error-soft: var(--vibe-error-soft);
+
+  --radius-card: var(--vibe-radius-card);
+  --radius-panel: var(--vibe-radius-panel);
+  --radius-modal: var(--vibe-radius-modal);
+
+  --font-display: var(--vibe-font-display);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--vibe-bg);
+    color: var(--vibe-text);
+    font-family: var(--vibe-font-body);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  * {
+    border-color: color-mix(in srgb, var(--vibe-stroke) 18%, transparent);
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--vibe-accent) 55%, transparent);
+    color: #fff;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: color-mix(in srgb, var(--vibe-text-secondary) 55%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--vibe-gradient-from);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--vibe-scrollbar-thumb) transparent;
+  }
+  .scroll-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scroll-thin::-webkit-scrollbar-thumb {
+    background: var(--vibe-scrollbar-thumb);
+    border-radius: 4px;
+  }
+  .scroll-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .hairline {
+    border-color: color-mix(in srgb, var(--vibe-stroke) 22%, transparent);
+  }
+}
+
+/* 输入框放在 components 层：基础样式定死字号与正文色，凡是用工具类
+   （h-10、py-0、text-xs）做局部调整的地方都能正常覆盖。 */
+@layer components {
+  .field {
+    display: block;
+    width: 100%;
+    background: var(--vibe-panel-2);
+    border-radius: var(--vibe-radius-card);
+    border: 1px solid transparent;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--vibe-text);
+    transition: border-color 160ms ease, box-shadow 160ms ease;
+  }
+  .field::placeholder {
+    color: color-mix(in srgb, var(--vibe-text-secondary) 52%, transparent);
+  }
+  .field:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--vibe-stroke) 45%, transparent);
+  }
+  .field:focus,
+  .field:focus-visible {
+    outline: none;
+    border-color: color-mix(in srgb, var(--vibe-accent) 70%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--vibe-accent) 22%, transparent);
+  }
+}
