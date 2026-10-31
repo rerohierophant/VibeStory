@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="VibeStory">
+  <title>VibeStory</title>
+  <defs>
+    <linearGradient id="vs-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d946ef"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 小尺寸版本：去掉高光层，横臂收短，笔画加粗到在 16px 下仍是清晰的两笔 -->
+  <rect width="96" height="96" rx="22" fill="url(#vs-grad)"/>
+  <path
+    d="M25 31 H36 L48 71 L60 31 H71"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="10"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

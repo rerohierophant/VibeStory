@@ -1,0 +1,115 @@
+/* VibeStory design tokens — framework-agnostic CSS variables.
+   与 theme.js 中的 Tailwind 配置对应；apps/web 二选一即可，建议用 Tailwind 配置。 */
+
+@font-face {
+  font-family: 'Audiowide';
+  src: url('./assets/fonts/Audiowide-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* Surfaces */
+  --vibe-bg: #0d0f11;
+  --vibe-panel: #111214;
+  --vibe-panel-2: #262c36;
+  --vibe-panel-hover: #2e3a45;
+  --vibe-dash: #334e68;
+  --vibe-stroke: #576776;
+
+  /* Text */
+  --vibe-text: #e3e3e3;
+  --vibe-text-secondary: #b8c0cc;
+  --vibe-text-on-light: #2b2e48;
+
+  /* Accent：底色 + 一个"软"变体，用于强调文字与选中态。
+     淡紫只保留这一个值，不再出现 #c9b6ff / #b9a6ff 两个近似色。 */
+  --vibe-accent: #7b57e0;
+  --vibe-accent-soft: #c9b6ff;
+  --vibe-accent-ink: #1b1530;
+
+  /* Status：每个状态只有两个值——实色（底/描边）与浅色（文字）。
+     警告色不再直取 Tailwind 的 amber-300 / amber-400。 */
+  --vibe-success: #2aa31f;
+  --vibe-success-soft: #8fe084;
+  --vibe-warning: #f5c451;
+  --vibe-error: #f53b30;
+  --vibe-error-soft: #ff9c96;
+  --vibe-white: #ffffff;
+
+  /* Typography */
+  --vibe-font-display: 'Audiowide', sans-serif;
+  --vibe-font-body: 'PingFang SC', system-ui, sans-serif;
+
+  /* Primary CTA
+     起点从 #d946ef 收到 #c026d3：白字对比度 3.46 → 4.71，达到正文 4.5:1。
+     hover 再深一档。渐变只在"确认型"操作上使用，列表页的次级入口用 outline。 */
+  --vibe-gradient-from: #c026d3;
+  --vibe-gradient-to: #6d28d9;
+  --vibe-gradient-hover-from: #a121cc;
+  --vibe-gradient-hover-to: #5b21b6;
+  --vibe-gradient-glow: 0 4px 30px 0 rgba(192, 38, 211, 0.28);
+
+  /* Layout */
+  --vibe-radius-card: 0.5rem;
+  --vibe-radius-panel: 1rem;
+  --vibe-radius-modal: 1.5rem;
+  --vibe-scrollbar-thumb: rgba(255, 255, 255, 0.3);
+}
+
+/* 通用组件层，可直接用于 React className，或作为 Tailwind 组件层的补充 */
+.vibe-surface {
+  background: var(--vibe-panel);
+  border-radius: var(--vibe-radius-modal);
+}
+
+.vibe-input {
+  height: 3.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--vibe-panel-2);
+  border-radius: var(--vibe-radius-card);
+  color: var(--vibe-text);
+  outline: none;
+}
+.vibe-input:focus {
+  box-shadow: inset 0 0 0 2px var(--vibe-gradient-from);
+}
+
+.vibe-cta {
+  position: relative;
+  overflow: hidden;
+  background-image: linear-gradient(
+    to bottom right,
+    var(--vibe-gradient-from),
+    var(--vibe-gradient-to)
+  );
+  transition: box-shadow 300ms ease-in-out, background-image 160ms ease-in-out;
+}
+.vibe-cta:hover {
+  background-image: linear-gradient(
+    to bottom right,
+    var(--vibe-gradient-hover-from),
+    var(--vibe-gradient-hover-to)
+  );
+  box-shadow: var(--vibe-gradient-glow);
+}
+.vibe-cta:disabled {
+  background-image: none;
+  background-color: color-mix(in srgb, white 5%, transparent);
+  color: color-mix(in srgb, white 45%, transparent);
+}
+.vibe-cta:disabled:hover {
+  box-shadow: none;
+}
+
+.vibe-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.vibe-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--vibe-scrollbar-thumb);
+  border-radius: 4px;
+}
+.vibe-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}

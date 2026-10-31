@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="VibeStory">
+  <title>VibeStory</title>
+  <defs>
+    <!-- 主渐变与 design/tokens.css 的 vibe-gradient-from / vibe-gradient-to 一致 -->
+    <linearGradient id="vs-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d946ef"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+    <!-- 顶部高光，让圆角方块有一点纵深感 -->
+    <linearGradient id="vs-sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="96" height="96" rx="24" fill="url(#vs-grad)"/>
+  <rect width="96" height="96" rx="24" fill="url(#vs-sheen)"/>
+
+  <!--
+    标记：一条线同时是「分镜框的顶边」和「字母 V」。
+    顶边在中段断开，两侧向下折成 V 的两条臂；
+    右臂的横臂比左臂短一点，避免视觉上偏右下。
+    缩到 16px 时横臂消失，只剩 V，仍然可读。
+  -->
+  <path
+    d="M23 29 H38 L48 73 L58 29 H73"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="7.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

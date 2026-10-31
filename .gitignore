@@ -1,0 +1,45 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencies and language tooling
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.turbo/
+
+# Build and verification output
+dist/
+build/
+target/
+coverage/
+.coverage
+htmlcov/
+playwright-report/
+test-results/
+*.tsbuildinfo
+
+# Runtime data
+/data/
+/uploads/
+/generated/
+/logs/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+
+# Local editors and OS
+.DS_Store
+.idea/
+.vscode/
