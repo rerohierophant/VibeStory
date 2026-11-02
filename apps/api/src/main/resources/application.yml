@@ -22,6 +22,16 @@ spring:
     connection-timeout: 3s
     template:
       mandatory: true
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      username: ${REDIS_USER:}
+      password: ${REDIS_PASSWORD:}
+      timeout: 500ms
+      connect-timeout: 500ms
+      repositories:
+        enabled: false
   jpa:
     open-in-view: false
     hibernate:
@@ -58,6 +68,18 @@ vibestory:
   seed:
     email: ${SEED_EMAIL:}
     password: ${SEED_PASSWORD:}
+  admission:
+    enabled: ${ADMISSION_ENABLED:false}
+    namespace: ${ADMISSION_NAMESPACE:vibestory}
+    text-credential-id: ${TEXT_CREDENTIAL_ID:shared-text}
+    media-credential-id: ${MEDIA_CREDENTIAL_ID:shared-media}
+    text-rate: ${TEXT_SUBMIT_RATE:1}
+    text-burst: ${TEXT_SUBMIT_BURST:2}
+    media-rate: ${MEDIA_SUBMIT_RATE:1}
+    media-burst: ${MEDIA_SUBMIT_BURST:2}
+    permit-ttl: ${ADMISSION_PERMIT_TTL:2s}
+    error-backoff: ${ADMISSION_ERROR_BACKOFF:1s}
+    ttl-margin: ${ADMISSION_TTL_MARGIN:60s}
   dispatch:
     mode: ${DISPATCH_MODE:database}
     role: ${APP_ROLE:all}

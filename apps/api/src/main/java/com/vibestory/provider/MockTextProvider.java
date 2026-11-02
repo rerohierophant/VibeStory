@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class MockTextProvider implements TextProvider {
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private MockSubmissionProbe probe;
     private static final String JS_SPACE = "[\\t\\n\\x0B\\f\\r \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]";
     private static final Pattern LEAD_IN = Pattern.compile("(说|问|道|喊|答|嘟囔|开口)$");
     private static final Pattern QUOTE = Pattern.compile("「([^」]+)」");
@@ -18,7 +20,9 @@ public class MockTextProvider implements TextProvider {
     private static final List<String> MOVES = List.of("固定", "推", "拉", "移");
     @Override public Capabilities capabilities() { return new Capabilities(false, true); }
 
-    @Override public Result generate(Input input) {
+    @Override public Result generate(Input input) throws InterruptedException {
+        com.vibestory.admission.SubmissionBoundary.beforeSubmission();
+        if(probe!=null) probe.entered("BREAKDOWN");
         List<SceneOption> scenes = input.sceneOptions().isEmpty() ? FALLBACK : input.sceneOptions().stream().map(scene -> {
             if (scene.keywords() != null) return scene;
             var keywords = new ArrayList<String>();

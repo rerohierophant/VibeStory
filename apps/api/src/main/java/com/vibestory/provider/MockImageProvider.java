@@ -9,9 +9,13 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class MockImageProvider implements ImageProvider {
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private MockSubmissionProbe probe;
     private final java.time.Duration delay;
     public MockImageProvider(@Value("${vibestory.mock.delay:3s}") java.time.Duration delay) { this.delay = delay; }
     @Override public Result generate(Input input, String signature) throws InterruptedException {
+        com.vibestory.admission.SubmissionBoundary.beforeSubmission();
+        if(probe!=null) probe.entered("IMAGE");
         Thread.sleep(delay);
         int width = 640, height = input.aspectRatio().equals("1:1") ? 640 : 360;
         var bitmap = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);

@@ -50,6 +50,7 @@ public class OpenAiCompatibleTextProvider implements TextProvider {
             var request = HttpRequest.newBuilder(URI.create(input.endpoint().replaceAll("/+$", "") + "/chat/completions"))
                 .timeout(properties.timeout()).header("Authorization", "Bearer " + properties.apiKey())
                 .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body))).build();
+            com.vibestory.admission.SubmissionBoundary.beforeSubmission();
             var response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             raw = redact(response.body());
             if (raw.length() > 1024 * 1024) throw new ProviderException("TEXT_RESPONSE_TOO_LARGE", "文本响应超过大小上限",

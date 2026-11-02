@@ -47,6 +47,7 @@ public class MiniMaxImageProvider implements ImageProvider {
             var request = HttpRequest.newBuilder(URI.create(endpoint)).timeout(config.timeout())
                 .header("Content-Type", "application/json").header("Authorization", "Bearer " + config.apiKey())
                 .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body))).build();
+            com.vibestory.admission.SubmissionBoundary.beforeSubmission();
             pending = http.sendAsync(request, ignored -> boundedBody());
             var response = pending.get(config.timeout().toMillis(), TimeUnit.MILLISECONDS);
             int status = response.statusCode();

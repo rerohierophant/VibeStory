@@ -38,7 +38,7 @@ def main():
     java = subprocess.check_output(['/usr/libexec/java_home', '-v', '21'], text=True).strip() + '/bin/java'
     api_port, web_port = free_port(), free_port()
     env = {**os.environ, 'TEXT_PROVIDER': 'mock', 'IMAGE_PROVIDER': 'mock', 'VIDEO_PROVIDER': 'mock', 'MOCK_ONLY': 'true',
-           'TEXT_API_KEY': '', 'IMAGE_API_KEY': '', 'VIDEO_API_KEY': '', 'DISPATCH_MODE': 'rabbit', 'WORKER_ENABLED': 'true',
+           'TEXT_API_KEY': '', 'IMAGE_API_KEY': '', 'VIDEO_API_KEY': '', 'ADMISSION_ENABLED': 'false', 'DISPATCH_MODE': 'rabbit', 'WORKER_ENABLED': 'true',
            'RABBITMQ_PORT': str(broker_port), 'MQ_NAMESPACE': namespace, 'SEED_EMAIL': '', 'SEED_PASSWORD': '',
            'STORAGE_ROOT': str(runtime / 'storage')}
     database = urllib.parse.urlparse(env['DATABASE_URL'].removeprefix('jdbc:'))

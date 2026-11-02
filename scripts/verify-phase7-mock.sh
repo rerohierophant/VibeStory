@@ -8,7 +8,7 @@ if [[ -f .env ]]; then
 fi
 export TEXT_PROVIDER=mock IMAGE_PROVIDER=mock VIDEO_PROVIDER=mock MOCK_ONLY=true
 export TEXT_API_KEY='' IMAGE_API_KEY='' VIDEO_API_KEY=''
-export DISPATCH_MODE=database APP_ROLE=all
+export DISPATCH_MODE=database APP_ROLE=all ADMISSION_ENABLED=false
 : "${TEST_RABBITMQ_PORT:?Use an isolated test broker port}"
 : "${TEST_RABBITMQ_MANAGEMENT_PORT:?Set the isolated management port}"
 : "${TEST_RABBITMQ_NODE:?Set the disposable local vibestory* node name}"

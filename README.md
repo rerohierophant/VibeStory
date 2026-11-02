@@ -12,6 +12,7 @@
 - 第五阶段视频与前后端联调：[docs/backend-phase5.md](docs/backend-phase5.md)
 - 第六阶段观测、测试与收尾：[docs/backend-phase6.md](docs/backend-phase6.md)
 - 第七阶段批次、RabbitMQ 与独立 Worker：[docs/backend-phase7.md](docs/backend-phase7.md)
+- 第八阶段 Redis 共享生成准入：[docs/backend-phase8.md](docs/backend-phase8.md)
 
 ## 核心链路
 
@@ -52,11 +53,12 @@
 | 数据访问 | Spring Data JPA + jOOQ（复杂查询） | 事务边界、乐观锁、分页查询 |
 | 存储 | PostgreSQL 16 + Flyway | 结构化状态、批次、任务与 Outbox 持久化 |
 | 任务分发 | RabbitMQ 4.4.0（可选模式） | 文本 / 图片 / 视频通道、独立 Worker、手动 ACK 与死信 |
+| 生成准入 | Redis 8.10.3（可选，依赖 MQ 模式） | 多 Worker 共享提交速率、短许可、故障关闭 |
 | 文件 | 本地私有文件（已实现）；S3 兼容存储（计划） | 上传素材与生成媒体 |
 | Agent（后续） | 受控工具模块，尚未实现 | 工具调用与跨步骤编排；当前拆解是普通后端任务 |
 | 契约 | `packages/contracts` + springdoc OpenAPI | API、任务事件、工具入参出参 |
 
-目录是职责边界。阶段一至六默认使用数据库租约轮询；阶段七增加 Outbox + RabbitMQ 与同代码库独立 Worker，任务事实和租约继续留在 PostgreSQL。Redis 是尚未实现的第八阶段。
+目录是职责边界。阶段一至六默认使用数据库租约轮询；阶段七增加 Outbox + RabbitMQ 与同代码库独立 Worker，任务事实和租约继续留在 PostgreSQL。第八阶段已增加可选 Redis 共享生成提交准入，故障时暂停新提交；默认仍无需 Redis。
 
 选 Java 21 的理由不是语言偏好，而是求职面：会 Java 可以投 Go 岗位，反向不成立。项目本身瓶颈在外部视频 API 的分钟级等待，不在并发吞吐。
 
@@ -112,7 +114,7 @@ VibeStory/
 
 **阶段六收尾**：新增按用户隔离、可跨重启查询的任务指标和提交后结构化日志；补齐组件测试、实际视频时长展示与免费验收入口。用户已取消录屏。本轮所有生成测试均用 Mock，验收范围和环境限制见 [第六阶段](docs/backend-phase6.md)。
 
-当前数据库模式回归为 **136 项后端 + 16 项组件 + 6 项 Chrome 测试**，以及真实 HTTP 续约 / SIGKILL / 重启回归；真实 RabbitMQ 专项单独统计于阶段七记录。证据对应如下；历史真实供应商验证的范围不随 Mock 测试扩大。
+当前数据库模式回归为 **136 项后端 + 17 项组件 + 6 项 Chrome 测试**，以及真实 HTTP 续约 / SIGKILL / 重启回归；真实 RabbitMQ 专项单独统计于阶段七记录。证据对应如下；历史真实供应商验证的范围不随 Mock 测试扩大。
 
 | 能力 | 实现位置 | 验证入口 |
 | --- | --- | --- |
@@ -132,3 +134,5 @@ VibeStory/
 
 
 MQ 本机启动：`scripts/dev-mq.sh api` 与两个终端分别运行 `scripts/dev-mq.sh worker`，共享 PostgreSQL / RabbitMQ 和同一绝对媒体根目录。免费 MQ 验收使用 `scripts/dev-test-rabbitmq.sh` + `scripts/verify-phase7-mock.sh`，具体隔离端口与可丢弃节点配置见阶段七文档；数据库模式全套回归仍用 `scripts/verify-all-mock.sh`。
+
+**阶段八已实现**：Redis 服务端时间 + Lua 令牌桶，多 Worker 共用生成提交额度；额度不足时数据库延迟派发、零新增 attempt，短许可在实际请求前校验。Redis 故障关闭、单一恢复代次从零补充，已有外部任务号继续查询恢复。运行 `scripts/dev-redis.sh api|worker`，真实 Redis 专项与本机故障证据见 [阶段八记录](docs/backend-phase8.md)。

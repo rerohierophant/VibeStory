@@ -389,6 +389,10 @@
           "dispatchBlocked": {
             "type": "string"
           },
+          "notBefore": {
+            "format": "date-time",
+            "type": "string"
+          },
           "outcome": {
             "type": "string"
           },
@@ -406,6 +410,9 @@
             "type": "string"
           },
           "taskId": {
+            "type": "string"
+          },
+          "waitReason": {
             "type": "string"
           }
         },
@@ -820,6 +827,10 @@
           "imageGuidance": {
             "$ref": "#/components/schemas/Guidance"
           },
+          "notBefore": {
+            "format": "date-time",
+            "type": "string"
+          },
           "ready": {
             "type": "boolean"
           },
@@ -846,6 +857,9 @@
             "type": "string"
           },
           "videoUrl": {
+            "type": "string"
+          },
+          "waitReason": {
             "type": "string"
           }
         },
@@ -1047,10 +1061,35 @@
   "info": {
     "description": "Scoped creation workspace: projects, stories, breakdown, versioned assets, image tasks, MiniMax video with persisted external IDs and first-frame provenance. Writes require a CSRF token from /api/auth/csrf.",
     "title": "VibeStory API",
-    "version": "0.7.0"
+    "version": "0.8.0"
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/admission-metrics": {
+      "get": {
+        "operationId": "metrics_1",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Metrics"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "admission-controller"
+        ]
+      }
+    },
     "/api/asset-versions/{versionId}/image": {
       "get": {
         "operationId": "image_2",

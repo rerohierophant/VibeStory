@@ -65,11 +65,23 @@ public class TaskStore {
 
     @Transactional
     public Optional<Lease> claimNotification(com.vibestory.dispatch.TaskNotification event, String owner, Providers providers, boolean mockLane) {
-        // Parent-before-task ordering matches deletion and result installation.
-        var parent = db.fetchOne("select id from project where id=? and user_id=? for update", event.projectId(),event.userId());
-        if (parent==null) return Optional.empty();
-        var task = db.fetchOne("select t.*,t.not_before<=now() as dispatch_due from task t join task_outbox o on o.task_id=t.id and o.dispatch_generation=t.dispatch_generation where t.id=? and o.id=? for update of t",event.taskId(),event.eventId());
-        if (task==null || task.get("dispatch_generation",Long.class)!=event.dispatchGeneration()) return Optional.empty();
+        var task=notificationTask(event,providers,mockLane,true);
+        return task==null?Optional.empty():claimLocked(task,owner);
+    }
+    public record Candidate(long taskId,String type,String provider,boolean externalRecovery) {}
+    @Transactional(readOnly=true)
+    public Optional<Candidate> inspectNotification(com.vibestory.dispatch.TaskNotification event,Providers providers,boolean mockLane) {
+        var task=notificationTask(event,providers,mockLane,false);
+        if(task==null) return Optional.empty();
+        boolean resume=task.get("type",String.class).equals("VIDEO") && task.get("provider",String.class).equals("minimax") && db.fetchExists(db.selectOne().from("task_attempt").where("task_id=? and attempt_no=? and external_task_id is not null and status in ('RUNNING','UNKNOWN')",event.taskId(),task.get("attempt_count",Integer.class)));
+        return Optional.of(new Candidate(event.taskId(),event.type(),task.get("provider",String.class),resume));
+    }
+    private Record notificationTask(com.vibestory.dispatch.TaskNotification event,Providers providers,boolean mockLane,boolean lock) {
+        // Parent-before-task lock order. Preflight holds no locks and never creates an attempt.
+        var parent=db.fetchOne("select id from project where id=? and user_id=?"+(lock?" for update":""),event.projectId(),event.userId());
+        if(parent==null) return null;
+        var task=db.fetchOne("select t.*,t.not_before<=now() as dispatch_due from task t join task_outbox o on o.task_id=t.id and o.dispatch_generation=t.dispatch_generation where t.id=? and o.id=?"+(lock?" for update of t":""),event.taskId(),event.eventId());
+        if (task==null || task.get("dispatch_generation",Long.class)!=event.dispatchGeneration()) return null;
         if (task.get("user_id",Long.class)!=event.userId() || task.get("project_id",Long.class)!=event.projectId()
             || !java.util.Objects.equals(task.get("episode_id",Long.class),event.episodeId()) || !task.get("type",String.class).equals(event.type()))
             throw new IllegalArgumentException("通知作用域不匹配");
@@ -78,18 +90,18 @@ public class TaskStore {
         if (persisted.equals("mock")!=mockLane || (!persisted.equals("mock") && !persisted.equals(configured)))
             throw new IllegalArgumentException("通知供应商通道不匹配");
         if (!task.get("status",String.class).equals("QUEUED") || task.get("dispatch_blocked")!=null
-            || !task.get("dispatch_due",Boolean.class)) return Optional.empty();
+            || !task.get("dispatch_due",Boolean.class)) return null;
         if (event.episodeId()!=null && db.fetchOne("select id from episode where id=? and project_id=? and user_id=?",event.episodeId(),event.projectId(),event.userId())==null)
-            return Optional.empty();
+            return null;
         if (task.get("target_type",String.class).equals("SHOT") && db.fetchOne("select id from shot where id=? and episode_id=? and project_id=? and user_id=?",task.get("target_id",Long.class),event.episodeId(),event.projectId(),event.userId())==null)
-            return Optional.empty();
+            return null;
         String targetType=task.get("target_type",String.class);
         if(targetType.equals("EPISODE") && !java.util.Objects.equals(task.get("target_id",Long.class),event.episodeId())) throw new IllegalArgumentException("集目标不匹配");
         if(java.util.Set.of("CHARACTER","SCENE").contains(targetType)) {
             String table=targetType.equals("CHARACTER")?"character_asset":"scene_asset";
-            if(db.fetchOne("select id from "+table+" where id=? and project_id=? and user_id=?",task.get("target_id",Long.class),event.projectId(),event.userId())==null) return Optional.empty();
+            if(db.fetchOne("select id from "+table+" where id=? and project_id=? and user_id=?",task.get("target_id",Long.class),event.projectId(),event.userId())==null) return null;
         }
-        return claimLocked(task,owner);
+        return task;
     }
 
     private Optional<Lease> claimLocked(Record task,String owner) {
@@ -243,7 +255,8 @@ public class TaskStore {
             return false;
         int changed = db.execute("""
             update task set status = ?, lease_owner = null, lease_until = null, version = version + 1,
-                error_code = ?, error_message = ?, retryable = ?, finished_at = now(), updated_at = now()
+                error_code = ?, error_message = ?, retryable = ?, finished_at = now(), updated_at = now(),
+                admission_wait_reason=null,admission_wait_since=null
             where id = ? and status = 'RUNNING' and lease_owner = ? and version = ? and lease_until > now()
             """, status, code, message, retryable, lease.taskId(), lease.owner(), version);
         if (changed == 0) return false;
@@ -257,7 +270,8 @@ public class TaskStore {
     private void terminalWithoutLease(long taskId, String status, String code, String message) {
         db.execute("""
             update task set status = ?, lease_owner = null, lease_until = null, version = version + 1,
-                error_code = ?, error_message = ?, retryable = false, finished_at = now(), updated_at = now()
+                error_code = ?, error_message = ?, retryable = false, finished_at = now(), updated_at = now(),
+                admission_wait_reason=null,admission_wait_since=null
             where id = ?
             """, status, code, message, taskId);
         events.record("task_terminal", taskId, null);

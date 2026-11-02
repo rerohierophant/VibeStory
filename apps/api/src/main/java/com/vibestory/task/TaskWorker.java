@@ -22,6 +22,7 @@ import org.springframework.stereotype.Component;
 public class TaskWorker {
     private static final Logger log = LoggerFactory.getLogger(TaskWorker.class);
     private final TaskStore store;
+    private final com.vibestory.admission.GenerationAdmission admission;
     private final VideoProviders provider;
     private final TextProviders text;
     private final BreakdownService breakdowns;
@@ -37,8 +38,9 @@ public class TaskWorker {
         Thread.ofPlatform().daemon().name("task-heartbeat-", 0).factory());
 
     public TaskWorker(TaskStore store, VideoProviders provider, WorkerProperties config, TextProviders text, BreakdownService breakdowns, ImageProviders images, ImageTaskService imageTasks,
-                      TextProperties textConfig,ImageProperties imageConfig,VideoProperties videoConfig, com.vibestory.dispatch.DispatchProperties dispatch) {
+                      TextProperties textConfig,ImageProperties imageConfig,VideoProperties videoConfig, com.vibestory.dispatch.DispatchProperties dispatch, com.vibestory.admission.GenerationAdmission admission) {
         this.store = store;
+        this.admission = admission;
         this.dispatch = dispatch;
         this.provider = provider;
         this.config = config;
@@ -71,30 +73,35 @@ public class TaskWorker {
     public String nextOwner() { return workerId + ":" + UUID.randomUUID(); }
 
     public void executeClaimed(TaskStore.Lease lease, Runnable release) {
-        execution.submit(() -> execute(lease, release));
+        executeClaimed(lease,release,null);
     }
 
-    private void execute(TaskStore.Lease lease) { execute(lease, slots::release); }
+    public void executeClaimed(TaskStore.Lease lease,Runnable release,com.vibestory.admission.GenerationAdmission.Permit permit) {
+        execution.submit(() -> execute(lease,release,permit));
+    }
+    private void execute(TaskStore.Lease lease) { execute(lease, slots::release,null); }
 
-    private void execute(TaskStore.Lease lease, Runnable release) {
+    private void execute(TaskStore.Lease lease, Runnable release,com.vibestory.admission.GenerationAdmission.Permit permit) {
         var running = new Running(lease);
         var heartbeat = heartbeats.scheduleAtFixedRate(running::renew, config.heartbeatInterval().toMillis(),
             config.heartbeatInterval().toMillis(), TimeUnit.MILLISECONDS);
         try {
             if (lease.type().equals("BREAKDOWN")) {
-                var result = text.generate(breakdowns.input(lease.input()));
+                var input=breakdowns.input(lease.input());
+                var result = admission.execute(lease,permit,running::active,()->text.generate(input));
                 synchronized (running) {
                     if (!running.lost && !store.succeedBreakdown(lease, running.version, result))
                         log.info("忽略未应用的拆解结果 task={}", lease.taskId());
                 }
             } else if (lease.type().endsWith("IMAGE")) {
-                var result = images.generate(imageTasks.input(lease.input()), lease.signature());
+                var input=imageTasks.input(lease.input());
+                var result = admission.execute(lease,permit,running::active,()->images.generate(input,lease.signature()));
                 synchronized (running) {
                     if (!running.lost && !store.succeedImage(lease, running.version, result))
                         log.info("忽略已失去租约的图片结果 task={}", lease.taskId());
                 }
             } else {
-                var result = provider.generate(lease.request(),lease.externalTaskId(),running::checkpoint);
+                var result = admission.execute(lease,permit,running::active,()->provider.generate(lease.request(),lease.externalTaskId(),running::checkpoint));
                 synchronized (running) {
                     if (!running.lost && !store.succeed(lease, running.version, result))
                         log.info("忽略已失去租约的任务结果 task={}", lease.taskId());
@@ -120,6 +127,7 @@ public class TaskWorker {
         private long version;
         private boolean lost;
         Running(TaskStore.Lease lease) { this.lease = lease; this.version = lease.version(); }
+        synchronized boolean active() { return !lost; }
 
         synchronized boolean checkpoint(String externalId) {
             if(lost) return false;

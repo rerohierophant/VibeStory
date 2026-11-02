@@ -5,13 +5,14 @@ plugins {
 }
 
 group = 'com.vibestory'
-version = '0.7.0'
+version = '0.8.0'
 java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
 repositories { mavenCentral() }
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-amqp'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
@@ -30,7 +31,7 @@ dependencies {
 
 tasks.withType(JavaCompile).configureEach { options.compilerArgs += '-parameters' }
 tasks.named('test') {
-    useJUnitPlatform { excludeTags "rabbit" }
+    useJUnitPlatform { excludeTags "rabbit", "redis" }
     jvmArgs '-Djava.awt.headless=true'
     testLogging { events 'failed', 'skipped'; exceptionFormat 'full' }
 }
@@ -48,4 +49,13 @@ tasks.register('rabbitTest', Test) {
 
 tasks.withType(Test).configureEach {
     systemProperty 'vibestory.contracts-dir', rootProject.file('packages/contracts').absolutePath
+}
+
+tasks.register('redisTest', Test) {
+    outputs.upToDateWhen { false }
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform { includeTags 'redis' }
+    jvmArgs '-Djava.awt.headless=true'
+    testLogging { events 'failed', 'skipped'; exceptionFormat 'full' }
 }

@@ -4,7 +4,9 @@
 
 VibeStory 是 AIGC 视频创作工作台，用于展示后端、Agent 和全栈工程能力。前端为 React + TypeScript + Vite + Tailwind CSS，已接入后端；启动时 API 不可用则显式使用独立的离线演示数据。后端为 Java 21 + Spring Boot 3 + Gradle，数据库 PostgreSQL 16。阶段一至六已实现：项目 / 风格 / 分集 / 正文持久化、拆解与镜头编辑确认、资产版本与基准选择、分镜图来源快照、视频首帧与外部任务号恢复、任务指标及结构化日志。当前只接 DeepSeek 文本与 MiniMax 图片 / 视频，另保留 Mock；不扩展多模型适配。MiniMax 图片仅单张真实验收，视频仅一次真实生成，参考图输入仍以 fixture 验证。视频真实任务曾有一次本地配置拦截，共两条本地 attempt，只有一次供应商生成调用；不可称作一次成功 attempt。第六阶段 117 项后端、13 项组件、5 项浏览器测试与 HTTP 崩溃恢复通过；本机使用真实 PostgreSQL 16，Docker / Testcontainers 分支未运行。用户取消录屏，并要求后续验收全部 Mock，不再调用真实图片或视频生成；使用 scripts/verify-all-mock.sh。Agent 工具编排尚未实现，不把普通拆解任务称作 Agent。密钥只存本机 .env，不得写入源码、快照、浏览器或 API 响应。JDK 21 已安装，所有开发脚本显式使用 21。
 
-阶段七已实现：整集图片 / 视频批次、事务 Outbox、RabbitMQ 4.4.0、独立 API / Worker、类型槽位、死信暂停 / 显式恢复、派发指标与批量页面。MQ 双 Worker / 崩溃 / 重启 / 页面链路使用真实 PostgreSQL 与本机 RabbitMQ、全部 Mock 验证；外部任务恢复只使用本机 HTTP fixture 查询 / 下载。默认 `DISPATCH_MODE=database` / `APP_ROLE=all`；MQ 用 `scripts/dev-mq.sh api|worker`，所有进程共享相同模式、数据库、namespace 和绝对媒体根目录，不混跑两种 Worker。Redis 与 Agent 尚未实现。数据库模式最新回归为 136 项后端、16 项组件、6 项 Chrome，真实 MQ 专项单列。详细证据与验收入口见 `docs/backend-phase7.md`。
+阶段七已实现：整集图片 / 视频批次、事务 Outbox、RabbitMQ 4.4.0、独立 API / Worker、类型槽位、死信暂停 / 显式恢复、派发指标与批量页面。MQ 双 Worker / 崩溃 / 重启 / 页面链路使用真实 PostgreSQL 与本机 RabbitMQ、全部 Mock 验证；外部任务恢复只使用本机 HTTP fixture 查询 / 下载。默认 `DISPATCH_MODE=database` / `APP_ROLE=all`；MQ 用 `scripts/dev-mq.sh api|worker`，所有进程共享相同模式、数据库、namespace 和绝对媒体根目录，不混跑两种 Worker。Agent 尚未实现。数据库模式最新回归为 136 项后端、17 项组件、6 项 Chrome，真实 MQ 专项单列。详细证据与验收入口见 `docs/backend-phase7.md`。
+
+阶段八已实现：可选 Redis 8.10.3 / Lua 共享生成提交令牌桶，MiniMax 图片 / 视频共用桶，文本独立；数据库延迟 Outbox、短许可在实际请求前校验、故障关闭与单一恢复代次从零补充。已有 external ID 恢复不占新生成额度。默认 `ADMISSION_ENABLED=false`，启用须用 rabbit 模式；`scripts/dev-redis.sh api|worker` 强制 Mock。所有进程须共享准入开关、namespace、凭证配置 ID 与 rate/burst。真实 Redis 专项 17 项，另有双 JVM / 实际 Redis 停机重启 / 桶丢失 / Chrome 验收；详见 `docs/backend-phase8.md`。Redis 不是任务事实源、任务锁或缓存；不承诺供应商端精确 QPS 或全局在途并发。
 
 **页面是规格来源**：`apps/web` 的已实现交互与 `apps/web/src/lib/types.ts` 的字段形状优先于 `docs/` 中的任何旧表述；两者冲突时以页面为准，并同步修订文档。
 

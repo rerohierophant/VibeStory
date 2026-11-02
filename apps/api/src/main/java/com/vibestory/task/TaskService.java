@@ -52,7 +52,7 @@ public class TaskService {
                        @io.swagger.v3.oas.annotations.media.Schema(allowableValues = {"idle", "queued", "running", "failed", "unknown"})
                        String state, boolean ready, String basedOn, int attempts,
                        String error, String errorCode, boolean retryable, String videoUrl, List<Attempt> history,
-                       String type, String targetId, ImageProvider.Guidance imageGuidance, boolean resumable) {}
+                       String type, String targetId, ImageProvider.Guidance imageGuidance, boolean resumable, String waitReason, java.time.OffsetDateTime notBefore) {}
 
     @Transactional
     public Submission submit(long userId, long shotId, String nonce) {
@@ -139,7 +139,8 @@ public class TaskService {
             ready && video ? "/api/tasks/" + taskId + "/video" : null, history,
             task.get("type", String.class).toLowerCase(java.util.Locale.ROOT), task.get("target_id", String.class),
             task.get("type", String.class).endsWith("IMAGE") ? images.input(task.get("input_snapshot", String.class)).guidance() : null,
-            task.get("status",String.class).equals("UNKNOWN") && !history.isEmpty() && history.getLast().externalTaskId()!=null);
+            task.get("status",String.class).equals("UNKNOWN") && !history.isEmpty() && history.getLast().externalTaskId()!=null,
+            task.get("admission_wait_reason",String.class), task.get("not_before",java.time.OffsetDateTime.class));
     }
 
     @Transactional

@@ -60,3 +60,9 @@ it carries no prompts, media, credentials or provider parameters. The owning Jav
 separate from the HTTP OpenAPI schema. A contract test guards its field / version / type alignment.
 Real RabbitMQ verification is `scripts/verify-phase7-mock.sh`; the database baseline remains
 `scripts/verify-all-mock.sh`. Both prohibit real generation. See `docs/backend-phase7.md`.
+
+Phase eight (`0.8.0`) adds authenticated `/api/admission-metrics`, scoped per-user bucket counters,
+and optional `Task.waitReason/notBefore` and batch member waiting fields. Admission waits preserve
+queued/running state and do not create attempts or count as generation failures. No supplier keys or
+quota-management API is exposed. Redis is optional and requires rabbit mode; both earlier baselines
+explicitly disable it. The internal MQ v1 schema is unchanged. See `docs/backend-phase8.md`.

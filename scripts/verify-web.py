@@ -38,7 +38,7 @@ def main():
     email, other = f'web-{stamp}@example.test', f'web-other-{stamp}@example.test'
     password = secrets.token_urlsafe(24)
     java = subprocess.check_output(['/usr/libexec/java_home', '-v', '21'], text=True).strip() + '/bin/java'
-    env = {**os.environ, "DISPATCH_MODE": "database", "APP_ROLE": "all", 'TEXT_PROVIDER': 'mock', 'IMAGE_PROVIDER': 'mock', 'VIDEO_PROVIDER': 'mock', 'MOCK_ONLY': 'true',
+    env = {**os.environ, "ADMISSION_ENABLED": "false", "DISPATCH_MODE": "database", "APP_ROLE": "all", 'TEXT_PROVIDER': 'mock', 'IMAGE_PROVIDER': 'mock', 'VIDEO_PROVIDER': 'mock', 'MOCK_ONLY': 'true',
            'TEXT_API_KEY': '', 'IMAGE_API_KEY': '', 'VIDEO_API_KEY': '',
            'WORKER_ENABLED': 'true', 'SEED_EMAIL': email, 'SEED_PASSWORD': password,
            'STORAGE_ROOT': str(ROOT / 'data/storage'), 'API_PROXY_TARGET': f'http://127.0.0.1:{api_port}',

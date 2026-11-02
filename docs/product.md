@@ -301,7 +301,7 @@ PUT    /api/settings
 | 前端 | React 19 + TypeScript + Vite + Tailwind CSS v4；主题来自 `design/theme.js` |
 | 后端 | Java 21 + Spring Boot 3 + Gradle，package-by-feature |
 | 持久化 | PostgreSQL 16 + Flyway；简单 CRUD 用 Spring Data JPA，复杂查询用 jOOQ |
-| 任务驱动 | PostgreSQL 状态 / 幂等 / 租约；默认数据库派发，可选 Outbox + RabbitMQ + 独立 Worker；Redis 尚未实现 |
+| 任务驱动 | PostgreSQL 状态 / 幂等 / 租约；默认数据库派发，可选 Outbox + RabbitMQ + 独立 Worker；可选 Redis 共享生成提交准入，等待状态仍持久化于数据库 |
 | 存储 | 本地目录 + `StorageService` 抽象；真实环境可替换为对象存储 |
 | 模型 | `TextProvider` / `ImageProvider` / `VideoProvider` 接口，Mock 与真实实现并存 |
 | 契约 | springdoc OpenAPI → 前端生成类型 |

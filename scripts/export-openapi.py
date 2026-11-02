@@ -17,7 +17,7 @@ def main():
         sock.bind(('127.0.0.1', 0))
         port = sock.getsockname()[1]
     java_home = subprocess.check_output(['/usr/libexec/java_home', '-v', '21'], text=True).strip() if platform.system() == 'Darwin' else os.environ['JAVA_HOME']
-    env = {**os.environ, 'DISPATCH_MODE': 'database', 'APP_ROLE': 'all', 'WORKER_ENABLED': 'false', 'SEED_EMAIL': '', 'SEED_PASSWORD': '',
+    env = {**os.environ, 'ADMISSION_ENABLED': 'false', 'DISPATCH_MODE': 'database', 'APP_ROLE': 'all', 'WORKER_ENABLED': 'false', 'SEED_EMAIL': '', 'SEED_PASSWORD': '',
            'TEXT_PROVIDER': 'mock', 'IMAGE_PROVIDER': 'mock', 'VIDEO_PROVIDER': 'mock', 'MOCK_ONLY': 'true',
            'TEXT_API_KEY': '', 'IMAGE_API_KEY': '', 'VIDEO_API_KEY': ''}
     runtime = ROOT / 'data/verification/contracts'

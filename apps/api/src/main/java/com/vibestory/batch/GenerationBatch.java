@@ -19,7 +19,7 @@ public class GenerationBatch {
         this.db=db;this.scope=scope;this.signatures=signatures;this.videos=videos;this.images=images;
     }
     public enum Type { IMAGE, VIDEO }
-    public record Member(String shotId,int seq,String outcome,String reason,String taskId,String state,String dispatchBlocked) {}
+    public record Member(String shotId,int seq,String outcome,String reason,String taskId,String state,String dispatchBlocked,String waitReason,java.time.OffsetDateTime notBefore) {}
     public record Progress(int total,int accepted,int reused,int blocked,int queued,int running,int succeeded,int failed,int unknown,int canceled,int paused) {}
     @io.swagger.v3.oas.annotations.media.Schema(name="GenerationBatch")
     public record View(String id,String episodeId,String type,String requestKey,String state,Progress progress,List<Member> members) {}
@@ -61,9 +61,9 @@ public class GenerationBatch {
     public View get(long userId,long id) {
         var batch=db.fetchOne("select b.* from generation_batch b join project p on p.id=b.project_id and p.user_id=b.user_id join episode e on e.id=b.episode_id and e.project_id=b.project_id and e.user_id=b.user_id where b.id=? and b.user_id=?",id,userId);
         if(batch==null) throw ApiException.notFound();
-        var members=db.fetch("select m.*,t.status,t.dispatch_blocked from generation_batch_member m left join task t on t.id=m.task_id and t.user_id=? where m.batch_id=? order by m.seq,m.shot_id",userId,id).stream().map(r->new Member(r.get("shot_id",String.class),r.get("seq",Integer.class),r.get("outcome",String.class).toLowerCase(Locale.ROOT),
+        var members=db.fetch("select m.*,t.status,t.dispatch_blocked,t.admission_wait_reason,t.not_before from generation_batch_member m left join task t on t.id=m.task_id and t.user_id=? where m.batch_id=? order by m.seq,m.shot_id",userId,id).stream().map(r->new Member(r.get("shot_id",String.class),r.get("seq",Integer.class),r.get("outcome",String.class).toLowerCase(Locale.ROOT),
             r.get("reason",String.class)!=null?r.get("reason",String.class):r.get("task_id")==null && !r.get("outcome",String.class).equals("BLOCKED")?"任务已移除":null,
-            r.get("task_id",String.class),r.get("status")==null?(r.get("outcome",String.class).equals("BLOCKED")?"blocked":"canceled"):r.get("status",String.class).toLowerCase(Locale.ROOT),r.get("dispatch_blocked",String.class))).toList();
+            r.get("task_id",String.class),r.get("status")==null?(r.get("outcome",String.class).equals("BLOCKED")?"blocked":"canceled"):r.get("status",String.class).toLowerCase(Locale.ROOT),r.get("dispatch_blocked",String.class),r.get("admission_wait_reason",String.class),r.get("not_before",java.time.OffsetDateTime.class))).toList();
         var p=new Progress(members.size(),count(members,"accepted",true),count(members,"reused",true),count(members,"blocked",true),count(members,"queued",false),count(members,"running",false),count(members,"succeeded",false),count(members,"failed",false),count(members,"unknown",false),count(members,"canceled",false),(int)members.stream().filter(m->m.dispatchBlocked()!=null).count());
         String state=p.queued()+p.running()==0?"complete":p.paused()>0 && p.running()==0 && p.paused()==p.queued()?"paused":"running";
         return new View(Long.toString(id),batch.get("episode_id",String.class),batch.get("type",String.class).toLowerCase(Locale.ROOT),batch.get("request_key",String.class),state,p,members);

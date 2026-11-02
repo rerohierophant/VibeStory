@@ -43,3 +43,11 @@ it('restores persisted progress and keeps dispatch pause separate from generatio
   await userEvent.click(screen.getByRole('button', { name: '修复后恢复派发' }));
   expect(state.api).toHaveBeenCalledWith('/api/tasks/8/dispatch/resume', 'POST', {});
 });
+
+it('restores admission waiting without showing a generation failure or manual resume', async () => {
+  state.api.mockResolvedValue([{ ...batch, state: 'running', members: [{ shotId: '1', seq: 1, outcome: 'accepted', state: 'queued', taskId: '8', waitReason: 'RATE_LIMITED' }], progress: { total: 1, queued: 1 } }]); view();
+  await userEvent.click(await screen.findByRole('button', { name: /最近批次 #7/ }));
+  expect(screen.getByText('等待生成名额 · 将自动继续')).toBeVisible();
+  expect(screen.getByText('镜头 1 · 已接收 · 排队中')).toBeVisible();
+  expect(screen.queryByRole('button', { name: '修复后恢复派发' })).not.toBeInTheDocument();
+});

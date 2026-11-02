@@ -92,6 +92,7 @@ function ApiBatchGeneration({ episodeId, type }: Props) {
           <p className="text-muted">接收 {shown.progress?.accepted ?? 0} · 复用 {shown.progress?.reused ?? 0} · 阻塞 {shown.progress?.blocked ?? 0} · 已生成 {shown.progress?.succeeded ?? 0} · 失败 {shown.progress?.failed ?? 0} · 未知 {shown.progress?.unknown ?? 0}</p>
           <ul className="max-h-52 space-y-2 overflow-y-auto">{shown.members?.map(member => <li key={member.shotId} className="flex flex-wrap gap-2 rounded bg-black/20 p-2">
             <span>镜头 {member.seq} · {outcomes[member.outcome ?? '']} · {states[member.state ?? '']}</span>
+            {member.waitReason && <span className="text-muted">{member.waitReason === 'RATE_LIMITED' ? '等待生成名额' : '生成服务暂缓接收，等待恢复'} · 将自动继续</span>}
             {member.reason && <span className="text-error-soft">{member.reason}</span>}
             {member.taskId && <span className="text-muted">任务 #{member.taskId}</span>}
             {member.dispatchBlocked && <><span className="text-error-soft">派发已暂停 · {member.dispatchBlocked}</span><button className="underline" onClick={() => void resume(member.taskId!)}>修复后恢复派发</button></>}

@@ -13,6 +13,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class MockVideoProvider implements VideoProvider {
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private MockSubmissionProbe probe;
     @ConfigurationProperties("vibestory.mock")
     public record Properties(Duration delay, double failureRate, String failureMode) {
         public Properties {
@@ -30,6 +32,8 @@ public class MockVideoProvider implements VideoProvider {
     @Override public Capabilities capabilities() { return new Capabilities(false, true, 3000); }
 
     @Override public Result generate(Request request) throws InterruptedException {
+        com.vibestory.admission.SubmissionBoundary.beforeSubmission();
+        if(probe!=null) probe.entered("VIDEO");
         Thread.sleep(properties.delay());
         // Deterministic fault injection, rather than flaky random test outcomes.
         double score = Long.parseUnsignedLong(request.signature().substring(0, 8), 16) / 4294967296.0;

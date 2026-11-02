@@ -72,7 +72,9 @@ public class MiniMaxVideoProvider {
         try {
             var builder=HttpRequest.newBuilder(URI.create(url)).timeout(config.timeout()).header("Authorization","Bearer "+config.apiKey());
             if (body!=null) builder.header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body)));
-            var response=send(builder.build(),1024*1024);
+            var request=builder.build();
+            if(creating) com.vibestory.admission.SubmissionBoundary.beforeSubmission();
+            var response=send(request,1024*1024);
             int status=response.statusCode();
             if (status<200 || status>=300) throw new ProviderException("VIDEO_HTTP_"+status,"视频接口返回 HTTP "+status,
                 creating && status==429, !creating || status>=500 || status==408);

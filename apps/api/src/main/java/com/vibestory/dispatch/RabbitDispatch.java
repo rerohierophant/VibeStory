@@ -32,6 +32,8 @@ public class RabbitDispatch {
     private final ObjectMapper json;
     private final DispatchStore outbox;
     private final TaskStore tasks;
+    private final com.vibestory.admission.GenerationAdmission admission;
+    private final com.vibestory.admission.AdmissionStore admissionStore;
     private final TaskWorker worker;
     private final WorkerProperties workers;
     private final DispatchProperties config;
@@ -43,9 +45,9 @@ public class RabbitDispatch {
 
     public RabbitDispatch(ConnectionFactory connections,RabbitTemplate rabbit,ObjectMapper json,DispatchStore outbox,
                           TaskStore tasks,TaskWorker worker,WorkerProperties workers,DispatchProperties config,
-                          TextProperties text,ImageProperties image,VideoProperties video) {
+                          TextProperties text,ImageProperties image,VideoProperties video,com.vibestory.admission.GenerationAdmission admission,com.vibestory.admission.AdmissionStore admissionStore) {
         this.connections=connections;this.rabbit=rabbit;this.json=json;this.outbox=outbox;this.tasks=tasks;
-        this.worker=worker;this.workers=workers;this.config=config;
+        this.worker=worker;this.workers=workers;this.config=config;this.admission=admission;this.admissionStore=admissionStore;
         this.providers=new TaskStore.Providers(text.provider(),image.provider(),video.provider());
         this.mockOnly=text.provider().equals("mock") && image.provider().equals("mock") && video.provider().equals("mock");
         rabbit.setMandatory(true);
@@ -100,11 +102,29 @@ public class RabbitDispatch {
             event=json.readValue(message.getBody(),TaskNotification.class);event.validate();
             if(!DispatchProperties.channel(event.type()).equals(type)) throw new IllegalArgumentException("通知类型与队列不匹配");
         } catch(Exception invalid) { channel.basicReject(tag,false);return; }
+        TaskStore.Candidate candidate=null;
+        if(admission.enabled()) {
+            try { candidate=tasks.inspectNotification(event,providers,mock).orElse(null); }
+            catch(IllegalArgumentException invalid) { channel.basicReject(tag,false);return; }
+            catch(Exception infrastructure) { retryInfrastructure(event,channel,tag);return; }
+            if(candidate==null) { channel.basicAck(tag,false);outbox.duplicate(event);return; }
+        }
         slots.acquire();
         boolean handedOff=false;
         try {
             Optional<TaskStore.Lease> lease;
-            try { lease=tasks.claimNotification(event,worker.nextOwner(),providers,mock); }
+            com.vibestory.admission.GenerationAdmission.Permit permit=null;
+            try {
+                if(candidate!=null && !candidate.externalRecovery()) {
+                    var decision=admission.request(candidate.taskId(),candidate.type(),candidate.provider());
+                    if(!decision.allowed()) {
+                        admissionStore.defer(event,decision.reason(),decision.retryAfterMs());
+                        channel.basicAck(tag,false);return;
+                    }
+                    permit=decision.permit();
+                }
+                lease=tasks.claimNotification(event,worker.nextOwner(),providers,mock);
+            }
             catch(IllegalArgumentException invalid) { channel.basicReject(tag,false);return; }
             catch(Exception infrastructure) {
                 // SQL failure is never interpreted as a missing task. Retry via the durable outbox.
@@ -114,9 +134,14 @@ public class RabbitDispatch {
             }
             // Transactional proxy has committed the lease before this ACK.
             channel.basicAck(tag,false);
-            if(lease.isPresent()) { worker.executeClaimed(lease.get(),slots::release);handedOff=true; }
+            if(lease.isPresent()) { worker.executeClaimed(lease.get(),slots::release,permit);handedOff=true; }
             else outbox.duplicate(event);
         } finally { if(!handedOff) slots.release(); }
+    }
+
+    private void retryInfrastructure(TaskNotification event,Channel channel,long tag) throws Exception {
+        try { if(outbox.deliveryFailed(event)) channel.basicAck(tag,false);else channel.basicReject(tag,false); }
+        catch(Exception databaseDown) { channel.basicReject(tag,false); }
     }
 
     @Scheduled(fixedDelay=500)

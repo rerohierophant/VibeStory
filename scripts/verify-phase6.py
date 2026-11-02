@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     runtime = ROOT / 'data/verification' / ('phase6-' + uuid.uuid4().hex[:10])
     runtime.mkdir(parents=True)
-    env = {**os.environ, 'DISPATCH_MODE': 'database', 'APP_ROLE': 'all', 'TEXT_PROVIDER': 'mock', 'IMAGE_PROVIDER': 'mock', 'VIDEO_PROVIDER': 'mock',
+    env = {**os.environ, 'ADMISSION_ENABLED': 'false', 'DISPATCH_MODE': 'database', 'APP_ROLE': 'all', 'TEXT_PROVIDER': 'mock', 'IMAGE_PROVIDER': 'mock', 'VIDEO_PROVIDER': 'mock',
            'MOCK_ONLY': 'true', 'TEXT_API_KEY': '', 'IMAGE_API_KEY': '', 'VIDEO_API_KEY': ''}
     summary = {'startedAt': datetime.now(timezone.utc).isoformat(), 'providers': ['mock', 'mock', 'mock'],
                'realGenerationEnabled': False, 'recording': False, 'steps': []}

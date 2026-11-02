@@ -13,7 +13,7 @@ import io.swagger.v3.oas.annotations.security.SecurityScheme;
 @SpringBootApplication
 @ConfigurationPropertiesScan
 @EnableScheduling
-@OpenAPIDefinition(info = @Info(title = "VibeStory API", version = "0.7.0",
+@OpenAPIDefinition(info = @Info(title = "VibeStory API", version = "0.8.0",
     description = "Scoped creation workspace: projects, stories, breakdown, versioned assets, image tasks, MiniMax video with persisted external IDs and first-frame provenance. Writes require a CSRF token from /api/auth/csrf."))
 @SecurityScheme(name = "session", type = SecuritySchemeType.APIKEY, in = SecuritySchemeIn.COOKIE, paramName = "JSESSIONID")
 public class VibeStoryApplication {

@@ -92,7 +92,7 @@ def main():
                 psql = candidate
                 break
     assert psql, "Install the PostgreSQL 16 client or set PSQL"
-    db_env = {**os.environ, "DISPATCH_MODE": "database", "APP_ROLE": "all", "PGHOST": connection.hostname or "localhost", "PGPORT": str(connection.port or 5432),
+    db_env = {**os.environ, "ADMISSION_ENABLED": "false", "DISPATCH_MODE": "database", "APP_ROLE": "all", "PGHOST": connection.hostname or "localhost", "PGPORT": str(connection.port or 5432),
               "PGDATABASE": connection.path.lstrip("/"), "PGUSER": os.environ.get("DATABASE_USER", "vibestory"),
               "PGPASSWORD": os.environ.get("DATABASE_PASSWORD", "")}
 
@@ -135,7 +135,7 @@ def main():
 
     def start(delay):
         nonlocal process
-        env = {**os.environ, "DISPATCH_MODE": "database", "APP_ROLE": "all", "SEED_EMAIL": email, "SEED_PASSWORD": password,
+        env = {**os.environ, "ADMISSION_ENABLED": "false", "DISPATCH_MODE": "database", "APP_ROLE": "all", "SEED_EMAIL": email, "SEED_PASSWORD": password,
                "STORAGE_ROOT": str(ROOT / "data/storage"), "WORKER_ENABLED": "true"}
         if not args.real_text and not args.real_image:
             env.update(MOCK_ONLY="true", TEXT_API_KEY="", IMAGE_API_KEY="", VIDEO_API_KEY="")

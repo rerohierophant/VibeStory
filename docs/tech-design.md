@@ -4,7 +4,7 @@
 
 > **规格来源**：`apps/web` 的已实现页面是这一版的字段与交互事实。本文中凡与页面冲突的描述，一律以页面为准并已改写；页面没有入口的功能不进后端。与上一版的差异见 §18。
 
-> **实现状态（2026-11-02）**：阶段一至七已实现，支持 DeepSeek 文本、MiniMax 图片 / 视频与 Mock，前后端 API、任务观测、整集批次和 RabbitMQ 独立 Worker 已接通。真实视频历史仅生成一次；本轮全部 Mock / 本机 HTTP fixture。第八阶段 Redis 仍待开发。当前接口以代码与 springdoc 为准；第七阶段实现与验收边界见 [backend-phase7.md](backend-phase7.md)。
+> **实现状态（2026-11-02）**：阶段一至八已实现，支持 DeepSeek 文本、MiniMax 图片 / 视频与 Mock，前后端 API、任务观测、整集批次和 RabbitMQ 独立 Worker 已接通。真实视频历史仅生成一次；本轮全部 Mock / 本机 HTTP fixture。第八阶段 Redis 共享提交准入已实现；运行与验收见 [backend-phase8.md](backend-phase8.md)。当前接口以代码与 springdoc 为准；第七阶段实现与验收边界见 [backend-phase7.md](backend-phase7.md)。
 
 ## 1. 总体结构
 
@@ -18,7 +18,7 @@ apps/web  ──HTTP──▶  apps/api (Spring Boot 单体)
                      MinIO（或本地目录）
 ```
 
-上图保留阶段一至六的数据库模式。**业务保持模块化单体**；第七阶段已让同一后端代码库以 API / Worker 两种角色运行，用 RabbitMQ 分发任务（§19）；第八阶段再接 Redis，共享多个 Worker 的生成提交速率。两步都保留 PostgreSQL 中的任务、attempt、来源快照与租约，不拆分项目、镜头、资产等领域服务。
+上图保留阶段一至六的数据库模式。**业务保持模块化单体**；第七阶段已让同一后端代码库以 API / Worker 两种角色运行，用 RabbitMQ 分发任务（§19）；第八阶段已接 Redis，共享多个 Worker 的生成提交速率。两步都保留 PostgreSQL 中的任务、attempt、来源快照与租约，不拆分项目、镜头、资产等领域服务。
 
 目录 `apps/agent` 保留为概念边界；Agent 工具编排尚未实现，进程拆分条件见 §9。第七、八阶段不以 Agent / MCP 已完成为前提，未来工具仍调用同一套业务服务。
 
@@ -245,7 +245,7 @@ GET /api/episodes/{id}/shots?taskActive=true   # 3 秒一次，页面失焦停�
 | --- | --- | --- |
 | PostgreSQL | 任务 / 批次、输入快照、attempt、幂等、租约、Outbox、延迟执行与恢复 | 唯一业务事实来源 |
 | RabbitMQ（阶段七） | 把可执行任务通知投递给独立 Worker，支持分类消费与有界消息重投 | 消息到达不等于任务执行或业务完成 |
-| Redis（阶段八） | 对共享同一供应商凭证的多个 Worker，原子限制新生成提交的速率与突发量 | 临时准入状态，不保存业务完成状态 |
+| Redis（阶段八已实现） | 对共享同一供应商凭证的多个 Worker，原子限制新生成提交的速率与突发量 | 临时准入状态，不保存业务完成状态 |
 
 接入顺序固定为 **现有数据库任务机制 → RabbitMQ + 独立 Worker → Redis 共享限流**。第七阶段无需 Redis；第八阶段复用第七阶段的队列、延迟执行与多 Worker 验收。详细协议与边界见 §19、§20。
 
@@ -403,7 +403,8 @@ apps/web/src
   - `V7__minimax_video.sql`：视频供应商约束与持久化 external task ID，支持恢复原尝试。
   - `V8__measured_video_duration.sql`：媒体时长使用实际 MP4 数据，不限制为名义输出时长。
 - `V9__batch_and_dispatch.sql`：批次 / 成员、Outbox、派发轮次、`not_before`、派发阻塞与死信归档，以及事务内 Outbox 触发器。
-- 后续扩展继续新增迁移，不能改写已执行的 V1～V9。迁移编号与开发阶段不再一一对应；第八阶段仅在需要新持久化字段时新增迁移。
+- `V10__generation_admission.sql`：桶配置 / 恢复代次、准入事件与任务等待字段。
+- 后续扩展继续新增迁移，不能改写已执行的 V1～V10。迁移编号与开发阶段不再一一对应。
 - 不使用 `ddl-auto: update`。
 - 关键唯一约束与索引：
   - `project (user_id, updated_at desc)` 列表查询。
@@ -456,7 +457,7 @@ Logstash JSON 日志只记录任务、attempt 与来源身份等允许的字段�
 
 ### 第七阶段与后续 Redis 的验收范围
 
-第七阶段使用真实 PostgreSQL + RabbitMQ 验证 Outbox 投递、重复消息、手动 ACK、死信、两 Worker 领取和崩溃接管；第八阶段再使用真实 Redis 验证跨 Worker 共享限流与故障关闭。生成全部使用 Mock；外部任务查询 / 下载恢复沿用本机 HTTP fixture，不发起真实生成请求。适配器单测不能代替真实中间件协议验收；没有运行的 Docker / Testcontainers 分支继续单独标注。具体条件见路线图阶段七、八。
+第七阶段使用真实 PostgreSQL + RabbitMQ 验证 Outbox 投递、重复消息、手动 ACK、死信、两 Worker 领取和崩溃接管；第八阶段已使用真实 Redis 验证跨 Worker 共享限流与故障关闭，详见 [阶段八记录](backend-phase8.md)。生成全部使用 Mock；外部任务查询 / 下载恢复沿用本机 HTTP fixture，不发起真实生成请求。适配器单测不能代替真实中间件协议验收；没有运行的 Docker / Testcontainers 分支继续单独标注。具体条件见路线图阶段七、八。
 
 ## 13. 本地运行
 
@@ -481,7 +482,7 @@ JDK 21 已安装；macOS 开发脚本通过 `java_home -v 21` 避开终端默认
 
 前端启动先探测 API，存在后端时使用会话与持久化数据；不可用时明确进入独立的本地演示。联机期间网络失败保留错误与草稿，不切换到本地写入。
 
-第七阶段已增加 RabbitMQ 4.4.0 的 Compose 配置、环境模板和 `scripts/dev-mq.sh api|worker` 入口；`scripts/dev-test-rabbitmq.sh` 启动本机隔离测试节点。默认 database/all 模式保留用于已有 Mock 回归；rabbit 模式中 API 不执行任务。所有进程须使用相同模式，不能混跑两种 Worker。媒体共享绝对根目录，完整启动与验收说明见 [backend-phase7.md](backend-phase7.md)。Redis 尚未增加。
+第七阶段已增加 RabbitMQ 4.4.0 的 Compose 配置、环境模板和 `scripts/dev-mq.sh api|worker` 入口；`scripts/dev-test-rabbitmq.sh` 启动本机隔离测试节点。默认 database/all 模式保留用于已有 Mock 回归；rabbit 模式中 API 不执行任务。所有进程须使用相同模式，不能混跑两种 Worker。媒体共享绝对根目录，完整启动与验收说明见 [backend-phase7.md](backend-phase7.md)。阶段八已增加可选 Redis，`scripts/dev-redis.sh api|worker` 强制 Mock 启用准入，默认仍关闭；见 [阶段八记录](backend-phase8.md)。
 
 ## 14. 已知取舍
 
@@ -494,7 +495,7 @@ JDK 21 已安装；macOS 开发脚本通过 `java_home -v 21` 避开终端默认
 | 冗余 `episode_id` / `project_id` | 作用域校验和列表筛选都要用，JOIN 三次不值得 |
 | 资产名称解析而不是名称外键 | 拆解结果可能提到尚未建卡的角色，先落名字再补卡 |
 | 数据库任务表作为事实来源，阶段七用 MQ 分发 | 现有幂等与租约继续有效；RabbitMQ 服务于整集批量提交与独立 Worker，不承担业务状态存储 |
-| 阶段八再接 Redis 共享限流 | 两个及以上 Worker 共享同一模型凭证时协调提交速率；阶段七先使用本地并发限制 |
+| 阶段八 Redis 共享限流 | 两个及以上 Worker 共享同一模型凭证时协调提交速率；阶段七先使用本地并发限制 |
 | 本地存储 + 抽象 | 保持可替换，同时不为对象存储增加部署门槛 |
 | 不做多人协作 | 单人角色可完整覆盖创作链路，权限模型对简历增益有限 |
 
@@ -620,7 +621,7 @@ MySQL 8 也能做，但三处能力对不上：
 | 导出 / 用量 / 手工补镜 | 必做或可选 | 本期不做 | 页面无入口 |
 | 镜头状态 | 「确认」+「审看通过」两套 | 只保留 `draft ⇄ confirmed` | `ShotStatusBadge` 单徽标 |
 | 任务分发扩展 | 阶段一至六数据库轮询 | 阶段七已加入 Outbox + RabbitMQ + 独立 Worker | `batch` / `dispatch`、`BatchGeneration` |
-| 共享生成额度 | 每进程本地并发控制 | 阶段八计划加入 Redis 共享提交限流 | 多 Worker 共用模型凭证的场景，尚未实现 |
+| 共享生成额度 | 每进程本地并发控制 | 阶段八已加入可选 Redis 共享提交准入 | `admission` / Lua、真实 Redis + 双 JVM 验收 |
 
 ## 19. 第七阶段：RabbitMQ 与整集批量任务分发（已实现）
 
@@ -672,7 +673,7 @@ Web / 后续 CLI、MCP
 
 协议依据：[RabbitMQ 发布确认与消费确认](https://www.rabbitmq.com/docs/confirms)、[死信交换机](https://www.rabbitmq.com/docs/dlx)。实际实现、故障注入与证据边界见 [阶段七记录](backend-phase7.md)。
 
-## 20. 第八阶段：Redis 多 Worker 共享生成提交限流（计划，未实现）
+## 20. 第八阶段：Redis 多 Worker 共享生成提交限流（已实现）
 
 ### 20.1 业务场景、依赖与计量口径
 
@@ -702,6 +703,12 @@ Web / 后续 CLI、MCP
 - 已发出的调用、外部任务查询 / 下载、租约续约与结果落库继续按现有机制执行。Redis 故障不撤销远程任务，不把其重投为新的付费生成。
 - 检测到 Redis 重启或限流状态丢失时暂停新准入，由单一恢复协调者在数据库锁下推进持久化恢复代次，各 Worker 对齐代次，将受影响桶从零令牌重建后恢复补充，避免各进程自行填满桶。严格速率结论限定在已验证的单节点正常运行与恢复策略范围内，不延伸为高可用保证。
 - 观测允许 / 拒绝 / Redis 错误次数、等待时长与按共享桶聚合的提交计数；用户任务页仍读取数据库状态，Redis 不保存任务完成信息。
-- 实施时再增加 Redis 客户端、Lua 脚本、配置及本地启动项；阶段七的 RabbitMQ / Outbox / 租约机制保持相同的业务语义。
+- 已增加 Spring Data Redis、Lua 脚本、配置及本地启动项；阶段七的 RabbitMQ / Outbox / 租约机制保持相同的业务语义。
 
 算法依据：[Redis 共享限流说明](https://redis.io/docs/latest/develop/use-cases/rate-limiter/)。具体参数用可配置 Mock 场景验证，不把演示参数描述为真实供应商限额。
+
+### 20.5 实现与实测入口
+
+默认 `ADMISSION_ENABLED=false`，启用仅支持 rabbit 模式。`AdmissionProperties` 管理共享身份与演示参数；`GenerationAdmission` / `AdmissionStore` 实现领取前准入、数据库延迟派发、短许可与恢复；适配器 `SubmissionBoundary` 在完成本地准备后校验许可；`/api/admission-metrics` 按用户隔离。marker 永不过期、tokens TTL 覆盖补满时间与余量，所有缺失（含自然过期）保守从零重建。同一凭证的配置别名须映射同一配置 ID，配置冲突停止准入。
+
+真实 Redis 17 项专项与双 JVM / Redis 停机重启 / 单桶丢失 / Chrome 验收、原数据库和 MQ 回归详见 [阶段八记录](backend-phase8.md)。生成全部 Mock，恢复仅本机 HTTP fixture。它们验证应用准入与本机调用，不代表远端任意窗口的精确 QPS、真实吞吐提升或中间件集群保证。

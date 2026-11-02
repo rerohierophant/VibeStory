@@ -4,6 +4,22 @@
  */
 
 export interface paths {
+    "/api/admission-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["metrics_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/asset-versions/{versionId}/image": {
         parameters: {
             query?: never;
@@ -786,6 +802,8 @@ export interface components {
         };
         Member: {
             dispatchBlocked?: string;
+            /** Format: date-time */
+            notBefore?: string;
             outcome?: string;
             reason?: string;
             /** Format: int32 */
@@ -793,6 +811,7 @@ export interface components {
             shotId?: string;
             state?: string;
             taskId?: string;
+            waitReason?: string;
         };
         Metrics: {
             /** Format: int64 */
@@ -942,6 +961,8 @@ export interface components {
             history?: components["schemas"]["Attempt"][];
             id?: string;
             imageGuidance?: components["schemas"]["Guidance"];
+            /** Format: date-time */
+            notBefore?: string;
             ready?: boolean;
             resumable?: boolean;
             retryable?: boolean;
@@ -950,6 +971,7 @@ export interface components {
             targetId?: string;
             type?: string;
             videoUrl?: string;
+            waitReason?: string;
         };
         Timing: {
             /** Format: double */
@@ -1022,6 +1044,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    metrics_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Metrics"];
+                };
+            };
+        };
+    };
     image_2: {
         parameters: {
             query?: never;
