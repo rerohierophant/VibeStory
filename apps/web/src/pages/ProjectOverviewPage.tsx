@@ -5,8 +5,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { PlaceholderImage } from '@/components/PlaceholderImage';
 import { timeAgo } from '@/lib/id';
 import { useProject, useProjectShots, useStore } from '@/lib/store';
-import { StyleSwatch } from '@/components/VisualTypeCard';
-import { resolveStyle, visualLabel } from '@/lib/visualPresets';
+import { visualLabel } from '@/lib/visualPresets';
 
 export function ProjectOverviewPage() {
   const { id = '' } = useParams();
@@ -27,16 +26,17 @@ export function ProjectOverviewPage() {
     );
   }
 
-  const preset = resolveStyle(project.visualType, customStyles);
   const episodes = [...project.episodes].sort((a, b) => a.index - b.index);
   const charList = characters.filter((c) => c.projectId === id);
   const sceneList = scenes.filter((c) => c.projectId === id);
   const confirmed = shots.filter((s) => s.status === 'confirmed').length;
   const withVideo = shots.filter((s) => s.video.ready).length;
 
-  const addEpisode = () => {
-    const newId = createEpisode(id);
+  const addEpisode = async () => {
+    try {
+    const newId = await createEpisode(id);
     navigate(`/projects/${id}/episodes/${newId}/story`);
+    } catch { /* Store displays the scoped API error. */ }
   };
 
   const stats = [
@@ -52,16 +52,12 @@ export function ProjectOverviewPage() {
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div className="flex min-w-0 items-center gap-4">
             <span className="w-[74px] shrink-0 overflow-hidden rounded-card border border-stroke/25">
-              {preset ? (
-                <StyleSwatch preset={preset} ratio="4 / 3" />
-              ) : (
-                <PlaceholderImage seed={project.visualType} ratio="4 / 3" rounded="rounded-none" />
-              )}
+              <PlaceholderImage seed={project.id} label="暂无封面" ratio="4 / 3" rounded="rounded-none" />
             </span>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="truncate text-xl font-semibold">{project.name}</h1>
-                <Badge tone="muted">{visualLabel(project.visualType, customStyles)}</Badge>
+                <Badge tone="muted">{(project.visualPreset?.label ?? visualLabel(project.visualType, customStyles))}</Badge>
               </div>
               <p className="mt-1.5 truncate text-xs text-muted">{project.style || '未填写风格'}</p>
               <p className="mt-1 text-[11px] text-muted/70">
@@ -204,7 +200,7 @@ export function ProjectOverviewPage() {
           </section>
 
           <section className="rounded-card border border-stroke/20 bg-black/20 p-4 text-[11px] leading-5 text-muted">
-            资产是跨集复用的字典：换一张基准图，只影响之后生成的分镜，已有图片标记为陈旧，需要显式重做。
+            人物与场景是可跨集复用的资产。分镜图保留生成人物、场景的版本来源，切换基准版本只用于后续生成。
           </section>
         </aside>
       </div>

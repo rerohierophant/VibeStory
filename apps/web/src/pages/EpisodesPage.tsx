@@ -79,9 +79,11 @@ export function EpisodesPage() {
 
   const episodes = [...project.episodes].sort((a, b) => a.index - b.index);
 
-  const addEpisode = () => {
-    const newId = createEpisode(id);
+  const addEpisode = async () => {
+    try {
+    const newId = await createEpisode(id);
     navigate(`/projects/${id}/episodes/${newId}/story`);
+    } catch { /* Store displays the scoped API error. */ }
   };
 
   return (

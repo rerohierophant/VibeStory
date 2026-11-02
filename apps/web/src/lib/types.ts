@@ -23,6 +23,7 @@ export interface Episode {
   breakdown: BreakdownState;
   createdAt: number;
   updatedAt: number;
+  breakdownTask?: { id: string; state: TaskState; error?: string; retryable: boolean; resumable?: boolean };
 }
 
 export interface Project {
@@ -33,22 +34,52 @@ export interface Project {
   createdAt: number;
   updatedAt: number;
   episodes: Episode[];
+  visualPreset?: VisualPreset;
 }
 
+/** 分镜图生成时使用的人物 / 场景版本；未关联版本时保留名称。 */
+export interface AssetVersionSnapshot {
+  assetId?: string;
+  name: string;
+  versionId?: string;
+  versionLabel?: string;
+}
+
+export interface ShotImageInputSnapshot {
+  characters: AssetVersionSnapshot[];
+  scene: AssetVersionSnapshot;
+}
+
+/** 镜头的生成产物，不属于可复用资产库，也不设陈旧状态。 */
 export interface ShotImage {
   id: string;
   label: string;
   seed: string;
   createdAt: number;
+  url?: string;
+  /** 提交生成时固定；历史图片没有记录时不按当前资产版本补填。 */
+  inputSnapshot?: ShotImageInputSnapshot;
+  /** 后端记录实际使用的参考图与适配器降级说明。 */
+  guidance?: {
+    mode: 'none' | 'full' | 'partial' | 'text-only';
+    usedVersionIds: string[];
+    notice?: string;
+  };
 }
 
 export interface ShotVideo {
   ready: boolean;
+  /** 固定记录提交生成时的首帧，不随当前候选图切换。 */
   basedOn?: string;
-  stale: boolean;
   state: TaskState;
   attempts: number;
   error?: string;
+  url?: string;
+  taskId?: string;
+  retryable?: boolean;
+  resumable?: boolean;
+  durationMs?: number;
+  pendingBasedOn?: string;
 }
 
 export interface Shot {
@@ -67,6 +98,9 @@ export interface Shot {
   images: ShotImage[];
   selectedImageId?: string;
   imageState: TaskState;
+  imageTaskId?: string;
+  imageError?: string;
+  imageRetryable?: boolean;
   video: ShotVideo;
 }
 
@@ -85,6 +119,8 @@ export interface Character {
   description: string;
   versions: AssetVersion[];
   selectedVersionId?: string;
+  generationState?: TaskState;
+  taskId?: string;
 }
 
 export interface SceneAsset {
@@ -94,15 +130,18 @@ export interface SceneAsset {
   description: string;
   versions: AssetVersion[];
   selectedVersionId?: string;
+  generationState?: TaskState;
+  taskId?: string;
 }
 
 export interface User {
+  id?: string;
   email: string;
 }
 
 export type ProviderKind = 'mock' | 'openai' | 'compatible';
 
-/** 生成能力的接入配置。原型阶段只保存，不发起真实调用。 */
+/** 离线演示兼容字段；联机模式读取后端实际配置，不读取浏览器 Token。 */
 export interface ProviderSettings {
   provider: ProviderKind;
   baseUrl: string;

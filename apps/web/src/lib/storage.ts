@@ -12,7 +12,17 @@ export function loadState(): State {
     const raw = localStorage.getItem(KEY);
     if (!raw) return initialState();
     const parsed = JSON.parse(raw) as State;
-    return { ...initialState(), ...parsed };
+    const state = { ...initialState(), ...parsed };
+    return {
+      ...state,
+      settings: { ...state.settings, token: '' },
+      shots: state.shots.map((shot) => {
+        const video = { ...shot.video };
+        // 保留现有作品与来源，仅清理旧版已移除的状态字段。
+        delete (video as typeof video & { stale?: boolean }).stale;
+        return { ...shot, video };
+      }),
+    };
   } catch {
     return initialState();
   }
@@ -20,7 +30,7 @@ export function loadState(): State {
 
 export function saveState(state: State): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(state));
+    localStorage.setItem(KEY, JSON.stringify({ ...state, settings: { ...state.settings, token: '' } }));
   } catch {
     // 本地存储不可用时静默降级，演示不受影响
   }

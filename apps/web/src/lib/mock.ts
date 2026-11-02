@@ -296,7 +296,6 @@ export function buildDemoShots(): Shot[] {
       video: {
         ready: hasVideo,
         basedOn: hasVideo ? images[1]?.id : undefined,
-        stale: index === 1,
         state: 'idle',
         attempts: hasVideo ? 1 : 0,
       },

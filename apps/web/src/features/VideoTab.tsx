@@ -1,19 +1,21 @@
+import { BatchGeneration } from './BatchGeneration';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge, ShotStatusBadge, TaskBadge } from '@/components/Badge';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { PlaceholderImage } from '@/components/PlaceholderImage';
+import { ImageGenerationSource } from '@/components/ImageGenerationSource';
 import { formatDuration } from '@/lib/id';
 import { useEpisodeShots, useProject, useStore } from '@/lib/store';
 import type { Episode, Shot } from '@/lib/types';
 
-type Filter = 'all' | 'ready' | 'pending' | 'failed' | 'stale';
+type Filter = 'all' | 'ready' | 'pending' | 'failed';
 
 function VideoCard({ shot, onPreview }: { shot: Shot; onPreview: () => void }) {
   const { generateVideo } = useStore();
   const navigate = useNavigate();
-  const image = shot.images.find((i) => i.id === shot.selectedImageId);
+  const image = shot.images.find((i) => i.id === (shot.video.ready ? shot.video.basedOn : shot.video.pendingBasedOn ?? shot.selectedImageId));
   const busy = shot.video.state === 'queued' || shot.video.state === 'running';
   const canSubmit = !!shot.selectedImageId && shot.status === 'confirmed';
   const blockedReason = !shot.selectedImageId
@@ -25,6 +27,7 @@ function VideoCard({ shot, onPreview }: { shot: Shot; onPreview: () => void }) {
     ? shot.video.state === 'queued'
       ? '排队中'
       : '生成中'
+    : shot.video.state === 'unknown' ? shot.video.resumable ? '继续查询' : '确认后重试'
     : shot.video.state === 'failed'
       ? '重试'
       : shot.video.ready
@@ -43,7 +46,7 @@ function VideoCard({ shot, onPreview }: { shot: Shot; onPreview: () => void }) {
               </span>
             </span>
             <span className="absolute bottom-2 right-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white/85">
-              {formatDuration(shot.durationMs)}
+              {formatDuration(shot.video.durationMs ?? shot.durationMs)}
             </span>
           </button>
         ) : image ? (
@@ -80,7 +83,6 @@ function VideoCard({ shot, onPreview }: { shot: Shot; onPreview: () => void }) {
           <span className="rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] text-white/85">
             {String(shot.seq).padStart(2, '0')}
           </span>
-          {shot.video.stale && <Badge tone="warning">基于旧图</Badge>}
           {shot.video.state !== 'idle' && <TaskBadge state={shot.video.state} />}
         </div>
       </div>
@@ -91,9 +93,7 @@ function VideoCard({ shot, onPreview }: { shot: Shot; onPreview: () => void }) {
         <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
           <ShotStatusBadge status={shot.status} />
           {shot.video.ready ? (
-            <Badge tone={shot.video.stale ? 'warning' : 'success'}>
-              {shot.video.stale ? '陈旧' : '已生成'}
-            </Badge>
+            <Badge tone="success">已生成</Badge>
           ) : (
             <Badge tone="muted">未生成</Badge>
           )}
@@ -103,12 +103,6 @@ function VideoCard({ shot, onPreview }: { shot: Shot; onPreview: () => void }) {
         {shot.video.error && (
           <p className="rounded bg-error/10 px-2 py-1.5 text-[10px] leading-4 text-error-soft">
             {shot.video.error}
-          </p>
-        )}
-
-        {shot.video.stale && (
-          <p className="rounded bg-warning/10 px-2 py-1.5 text-[10px] leading-4 text-warning">
-            所选分镜图已更换，这段视频对应的是上一版首帧。旧视频保留，可回看。
           </p>
         )}
 
@@ -139,7 +133,7 @@ function VideoPreview({
   onClose: () => void;
 }) {
   if (!shot) return null;
-  const image = shot.images.find((i) => i.id === shot.selectedImageId);
+  const image = shot.images.find((i) => i.id === shot.video.basedOn);
 
   return (
     <div
@@ -155,7 +149,7 @@ function VideoPreview({
               第 {episode?.index} 集 · {String(shot.seq).padStart(2, '0')} · {shot.sceneName}
             </h2>
             <p className="mt-0.5 text-[11px] text-muted">
-              {episode?.title} · {shot.shotSize} · {shot.cameraMove} · {formatDuration(shot.durationMs)} · 尝试{' '}
+              {episode?.title} · {shot.shotSize} · {shot.cameraMove} · {formatDuration(shot.video.durationMs ?? shot.durationMs)} · 尝试{' '}
               {shot.video.attempts} 次
             </p>
           </div>
@@ -169,6 +163,7 @@ function VideoPreview({
         <div className="grid gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="space-y-3">
             <div className="relative">
+              {shot.video.url ? <video controls autoPlay preload="metadata" src={shot.video.url} poster={image?.seed.startsWith('/api/') ? image.seed : undefined} className="aspect-video w-full rounded-card bg-black" aria-label="镜头视频" /> : <>
               <PlaceholderImage seed={image?.seed ?? shot.id} ratio="16 / 9" />
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/25">
                 <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/55 text-xl text-white/90 backdrop-blur">
@@ -178,13 +173,13 @@ function VideoPreview({
                   占位播放器 · 接入供应商后替换为真实视频
                 </span>
               </div>
+              </>}
             </div>
             <div className="flex items-center gap-3 rounded-card border border-stroke/20 bg-black/25 px-4 py-3 text-[11px] text-muted">
               <span>首帧来源</span>
               <span className="flex-1 truncate">
-                {image ? `${image.label} · ${new Date(image.createdAt).toLocaleString('zh-CN')}` : '—'}
+                {image ? `${image.label} · ${new Date(image.createdAt).toLocaleString('zh-CN')}` : '未记录'}
               </span>
-              {shot.video.stale && <Badge tone="warning">已陈旧</Badge>}
             </div>
           </div>
 
@@ -197,19 +192,9 @@ function VideoPreview({
               <p className="text-xs text-muted">台词</p>
               <p className="mt-1 leading-6">{shot.dialogue || '—'}</p>
             </div>
-            <div>
-              <p className="text-xs text-muted">引用资产</p>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {shot.characterNames.map((n) => (
-                  <Badge key={n} tone="accent">
-                    {n}
-                  </Badge>
-                ))}
-                <Badge tone="neutral">{shot.sceneName}</Badge>
-              </div>
-            </div>
+            {image && <ImageGenerationSource image={image} />}
             <div className="rounded-card border border-stroke/20 bg-black/20 p-3 text-[11px] leading-5 text-muted">
-              这段视频绑定的是某个具体的首帧版本。首帧一换，视频就会被判定为陈旧，需要显式重做。
+              首帧来源记录生成这段视频时使用的分镜图，切换当前分镜图后仍可查看这段视频。
             </div>
           </aside>
         </div>
@@ -229,21 +214,19 @@ export function VideoTab({ episodeId, projectId }: { episodeId: string; projectI
   const eligible = shots.filter((s) => s.status === 'confirmed');
 
   const filtered = useMemo(() => {
-    if (filter === 'ready') return eligible.filter((s) => s.video.ready && !s.video.stale);
+    if (filter === 'ready') return eligible.filter((s) => s.video.ready);
     if (filter === 'pending') return eligible.filter((s) => !s.video.ready);
     if (filter === 'failed') return eligible.filter((s) => s.video.state === 'failed');
-    if (filter === 'stale') return eligible.filter((s) => s.video.stale);
     return eligible;
   }, [eligible, filter]);
 
   const counts = {
-    ready: eligible.filter((s) => s.video.ready && !s.video.stale).length,
+    ready: eligible.filter((s) => s.video.ready).length,
     pending: eligible.filter((s) => !s.video.ready).length,
     failed: eligible.filter((s) => s.video.state === 'failed').length,
-    stale: eligible.filter((s) => s.video.stale).length,
   };
 
-  const totalMs = eligible.reduce((sum, s) => sum + (s.video.ready ? s.durationMs : 0), 0);
+  const totalMs = eligible.reduce((sum, s) => sum + (s.video.ready ? s.video.durationMs ?? s.durationMs : 0), 0);
 
   if (shots.length === 0) {
     return (
@@ -271,7 +254,6 @@ export function VideoTab({ episodeId, projectId }: { episodeId: string; projectI
               ['ready', `已生成 ${counts.ready}`],
               ['pending', `未生成 ${counts.pending}`],
               ['failed', `失败 ${counts.failed}`],
-              ['stale', `陈旧 ${counts.stale}`],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -302,6 +284,8 @@ export function VideoTab({ episodeId, projectId }: { episodeId: string; projectI
         </div>
       </div>
 
+      <BatchGeneration episodeId={episodeId} type="VIDEO" />
+
       <div className="flex-1 overflow-y-auto scroll-thin p-6">
         {filtered.length === 0 ? (
           <EmptyState
@@ -317,7 +301,7 @@ export function VideoTab({ episodeId, projectId }: { episodeId: string; projectI
         )}
       </div>
 
-      <VideoPreview shot={preview} episode={episode} onClose={() => setPreview(null)} />
+      <VideoPreview shot={preview ? shots.find(s => s.id === preview.id) ?? null : null} episode={episode} onClose={() => setPreview(null)} />
     </div>
   );
 }

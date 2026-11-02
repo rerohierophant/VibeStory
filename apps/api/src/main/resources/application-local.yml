@@ -1,0 +1,4 @@
+# All secrets come from the process environment. This file is safe to commit.
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

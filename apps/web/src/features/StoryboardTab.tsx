@@ -1,3 +1,4 @@
+import { BatchGeneration } from './BatchGeneration';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge, ShotStatusBadge, TaskBadge } from '@/components/Badge';
@@ -5,11 +6,13 @@ import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { Modal } from '@/components/Modal';
 import { PlaceholderImage } from '@/components/PlaceholderImage';
+import { ImageGenerationSource } from '@/components/ImageGenerationSource';
 import { formatDuration } from '@/lib/id';
 import { useEpisodeShots, useProject, useStore } from '@/lib/store';
-import type { Episode, Shot } from '@/lib/types';import { ShotEditor } from './ShotEditor';
+import type { Episode, Shot } from '@/lib/types';
+import { ShotEditor } from './ShotEditor';
 
-type Filter = 'all' | 'todo' | 'stale' | 'draft';
+type Filter = 'all' | 'todo' | 'draft';
 
 function shotCode(shot: Shot) {
   return String(shot.seq).padStart(2, '0');
@@ -54,8 +57,7 @@ function ShotPreview({
                 <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/10">
                   ▶
                 </span>
-                视频片段 · {formatDuration(shot.durationMs)}
-                {shot.video.stale && <Badge tone="warning">基于旧图，需要重做</Badge>}
+                视频片段 · {formatDuration(shot.video.durationMs ?? shot.durationMs)}
               </div>
               <span className="text-[11px] text-muted">尝试 {shot.video.attempts} 次</span>
             </div>
@@ -74,17 +76,20 @@ function ShotPreview({
             <p className="text-xs text-muted">台词</p>
             <p className="mt-1 leading-6">{shot.dialogue || '—'}</p>
           </div>
-          <div>
-            <p className="text-xs text-muted">引用资产</p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {shot.characterNames.map((n) => (
-                <Badge key={n} tone="accent">
-                  {n}
-                </Badge>
-              ))}
-              <Badge tone="neutral">{shot.sceneName}</Badge>
+          {image && <ImageGenerationSource image={image} />}
+          {!image && (
+            <div>
+              <p className="text-xs text-muted">下次生成引用</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {shot.characterNames.map((n) => (
+                  <Badge key={n} tone="accent">
+                    {n}
+                  </Badge>
+                ))}
+                <Badge tone="neutral">{shot.sceneName}</Badge>
+              </div>
             </div>
-          </div>
+          )}
         </aside>
       </div>
     </Modal>
@@ -109,93 +114,140 @@ function ShotRow({
   const busy = shot.imageState === 'queued' || shot.imageState === 'running';
 
   return (
-    <div
-      className={`grid grid-cols-[112px_minmax(0,1fr)_150px] gap-4 rounded-card border p-2.5 transition ${
-        active ? 'border-accent/60 bg-accent/5' : 'border-stroke/15 bg-panel/40 hover:border-stroke/35'
+    <tr
+      className={`group border-b border-stroke/20 transition-colors ${
+        active ? 'bg-accent/5' : 'hover:bg-panel-2/20'
       }`}
     >
-      <div className="space-y-1.5">
-        <button type="button" onClick={onOpenPreview} className="block w-full">
+      <th scope="row" className="px-4 py-5 align-top font-normal">
+        <span className="font-mono text-xs text-muted">{code}</span>
+      </th>
+
+      <td className="px-4 py-4 align-top">
+        <button
+          type="button"
+          onClick={onOpenPreview}
+          aria-label={`预览第 ${code} 镜分镜图`}
+          className="group/preview relative block w-full overflow-hidden rounded-card ring-1 ring-inset ring-stroke/25 transition hover:ring-accent/60"
+        >
           {selected ? (
-            <PlaceholderImage seed={selected.seed} ratio="16 / 9" label={code} />
+            <>
+              <PlaceholderImage seed={selected.seed} ratio="16 / 9" label={`已选 ${selected.label}`} />
+              <span className="absolute right-2 top-2 rounded bg-black/50 px-2 py-1 text-[11px] text-white/85 transition group-hover/preview:bg-black/70">
+                放大 ↗
+              </span>
+            </>
           ) : (
             <div
-              className="flex flex-col items-center justify-center gap-1 rounded-card border border-dashed border-stroke/35 bg-black/25 text-[10px] text-muted"
+              className="flex flex-col items-center justify-center gap-2 rounded-card border border-dashed border-stroke/35 bg-black/25 text-xs text-muted"
               style={{ aspectRatio: '16 / 9' }}
             >
               {busy ? (
                 <>
-                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-accent/40 border-t-accent" />
+                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-accent/40 border-t-accent" />
                   {shot.imageState === 'queued' ? '排队中' : '生成中'}
                 </>
               ) : (
-                <span>尚无分镜图</span>
+                <>
+                  <span>{shot.images.length > 0 ? '尚未选定分镜图' : '尚无分镜图'}</span>
+                  <span className="text-[11px] text-muted/65">
+                    {shot.status === 'draft' ? '确认镜头后即可生成' : '点击画面可查看镜头详情'}
+                  </span>
+                </>
               )}
             </div>
           )}
         </button>
 
         {shot.images.length > 0 && (
-          <div className="flex flex-wrap gap-1">
+          <div className="mt-2.5 flex flex-wrap gap-2" aria-label={`第 ${code} 镜候选图`}>
             {shot.images.map((img) => (
               <button
                 key={img.id}
                 type="button"
                 onClick={() => selectImage(shot.id, img.id)}
+                aria-label={`第 ${code} 镜选定 ${img.label}`}
+                aria-pressed={shot.selectedImageId === img.id}
                 title={`选定 ${img.label}`}
-                className={`w-7 overflow-hidden rounded border-2 transition ${
+                className={`w-14 overflow-hidden rounded border-2 transition ${
                   shot.selectedImageId === img.id
                     ? 'border-accent'
-                    : 'border-transparent opacity-55 hover:opacity-100'
+                    : 'border-transparent opacity-60 hover:opacity-100'
                 }`}
               >
-                <PlaceholderImage seed={img.seed} ratio="4 / 3" rounded="rounded-none" />
+                <PlaceholderImage seed={img.seed} ratio="16 / 9" rounded="rounded-none" />
+                <span className="block truncate bg-panel-2/70 px-1 py-0.5 text-[10px] text-fg/85">
+                  {img.label}
+                </span>
               </button>
             ))}
           </div>
         )}
-      </div>
+      </td>
 
-      <button type="button" onClick={onOpenEditor} className="min-w-0 text-left">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-[11px] text-muted">{code}</span>
+      <td className="px-4 py-4 align-top">
+        <button
+          type="button"
+          onClick={onOpenEditor}
+          aria-label={`编辑第 ${code} 镜：${shot.description || '无画面描述'}`}
+          className="block w-full text-left"
+        >
+          <p className="line-clamp-4 text-sm leading-6 text-fg/90 transition hover:text-fg">
+            {shot.description || '（无画面描述）'}
+          </p>
+          {shot.dialogue && (
+            <div className="mt-3 border-l-2 border-stroke/35 pl-3">
+              <span className="text-[11px] text-muted/70">台词</span>
+              <p className="mt-1 line-clamp-3 text-[13px] leading-6 text-muted">{shot.dialogue}</p>
+            </div>
+          )}
+          <p className="mt-3 text-[11px] leading-5 text-muted">
+            人物 · {shot.characterNames.join('、') || '未识别'}
+          </p>
+        </button>
+      </td>
+
+      <td className="px-4 py-4 align-top">
+        <dl className="space-y-3 text-xs">
+          <div>
+            <dt className="text-[11px] text-muted/70">场景</dt>
+            <dd className="mt-1 break-words leading-5 text-fg/85">{shot.sceneName || '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] text-muted/70">景别 / 运镜</dt>
+            <dd className="mt-1 text-fg/85">{shot.shotSize} · {shot.cameraMove}</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] text-muted/70">时长</dt>
+            <dd className="mt-1 font-mono text-fg/85">{formatDuration(shot.durationMs)}</dd>
+          </div>
+        </dl>
+      </td>
+
+      <td className="px-4 py-4 align-top">
+        <div className="flex flex-col items-start gap-2 text-[11px] text-muted">
           <ShotStatusBadge status={shot.status} />
-          {shot.images.length === 0 && <Badge tone="muted">无图</Badge>}
-        </div>
-
-        <p className="mt-2 line-clamp-2 text-sm leading-6 text-fg/90">
-          {shot.description || '（无画面描述）'}
-        </p>
-        {shot.dialogue && (
-          <p className="mt-1 line-clamp-1 text-[13px] leading-6 text-muted">「{shot.dialogue}」</p>
-        )}
-
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
-          <span>{shot.sceneName}</span>
-          <span>· {shot.shotSize}</span>
-          <span>· {shot.cameraMove}</span>
-          <span>· {formatDuration(shot.durationMs)}</span>
-          {shot.characterNames.length > 0 && <span>· {shot.characterNames.join('、')}</span>}
-        </div>
-      </button>
-
-      <div className="flex flex-col justify-between gap-2">
-        <div className="flex items-center justify-end gap-1.5 text-[11px] text-muted">
           {shot.video.ready ? (
-            <>
-              {shot.video.stale ? (
-                <Badge tone="warning">视频陈旧</Badge>
-              ) : (
-                <Badge tone="success">有视频</Badge>
-              )}
-            </>
+            <Badge tone="success">有视频</Badge>
           ) : (
             <Badge tone="muted">无视频</Badge>
           )}
-          {shot.video.state !== 'idle' && <TaskBadge state={shot.video.state} />}
+          {shot.imageState !== 'idle' && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span>出图</span>
+              <TaskBadge state={shot.imageState} />
+            </div>
+          )}
+          {shot.video.state !== 'idle' && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span>视频</span>
+              <TaskBadge state={shot.video.state} />
+            </div>
+          )}
         </div>
 
-        <div className="flex justify-end gap-1.5">
+        <div className="mt-4 flex flex-col items-stretch gap-2">
+          {shot.imageError && <p className="text-[11px] leading-5 text-error-soft">{shot.imageError}</p>}
           {shot.status === 'draft' ? (
             <Button size="sm" variant="outline" onClick={() => confirmShot(shot.id)}>
               确认
@@ -207,11 +259,14 @@ function ShotRow({
             onClick={() => generateImage(shot.id)}
             disabled={busy || shot.status !== 'confirmed'}
           >
-            {shot.images.length === 0 ? '生成分镜图' : '再生成一版'}
+            {shot.imageState === 'unknown' ? '确认后重试' : shot.imageState === 'failed' ? '重试' : shot.images.length === 0 ? '生成分镜图' : '再生成一版'}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onOpenEditor}>
+            编辑镜头
           </Button>
         </div>
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }
 
@@ -228,7 +283,6 @@ export function StoryboardTab({ episodeId, projectId }: { episodeId: string; pro
 
   const filtered = useMemo(() => {
     if (filter === 'todo') return shots.filter((s) => s.images.length === 0);
-    if (filter === 'stale') return shots.filter((s) => s.video.stale);
     if (filter === 'draft') return shots.filter((s) => s.status === 'draft');
     return shots;
   }, [shots, filter]);
@@ -256,13 +310,12 @@ export function StoryboardTab({ episodeId, projectId }: { episodeId: string; pro
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stroke/15 px-6 py-3">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-1.5">
             {(
               [
                 ['all', '全部'],
                 ['todo', '待出图'],
-                ['stale', '视频陈旧'],
                 ['draft', '待确认'],
               ] as const
             ).map(([key, label]) => (
@@ -300,25 +353,48 @@ export function StoryboardTab({ episodeId, projectId }: { episodeId: string; pro
         </div>
       </div>
 
-      <div className="flex-1 space-y-2 overflow-y-auto scroll-thin p-6">
+      <BatchGeneration episodeId={episodeId} type="IMAGE" />
+
+      <div className="min-h-0 flex-1 overflow-auto scroll-thin px-6 pb-6">
         {filtered.length === 0 ? (
           <EmptyState title="没有符合条件的镜头" description="切换筛选条件试试。" />
         ) : (
-          filtered.map((s) => (
-            <ShotRow
-              key={s.id}
-              shot={s}
-              code={shotCode(s)}
-              active={activeId === s.id}
-              onOpenEditor={() => setActiveId(s.id)}
-              onOpenPreview={() => setPreview(s)}
-            />
-          ))
+          <table className="w-full min-w-[944px] table-fixed border-collapse text-left [--storyboard-image-width:clamp(15rem,22vw,22rem)]">
+            <caption className="sr-only">
+              第 {episode?.index} 集 · {episode?.title} 分镜表。点击画面查看大图，点击描述编辑镜头。
+            </caption>
+            <colgroup>
+              <col className="w-16" />
+              <col style={{ width: 'calc(var(--storyboard-image-width) + 2rem)' }} />
+              <col />
+              <col className="w-32" />
+              <col className="w-36" />
+            </colgroup>
+            <thead className="sticky top-0 z-10 bg-panel text-[11px] text-muted shadow-[0_1px_0_var(--vibe-panel-2)]">
+              <tr>
+                {['镜号', '分镜画面', '画面描述 / 台词', '镜头参数', '状态 / 操作'].map((label) => (
+                  <th key={label} scope="col" className="px-4 py-3 font-medium">{label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((s) => (
+                <ShotRow
+                  key={s.id}
+                  shot={s}
+                  code={shotCode(s)}
+                  active={activeId === s.id}
+                  onOpenEditor={() => setActiveId(s.id)}
+                  onOpenPreview={() => setPreview(s)}
+                />
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
 
       <ShotEditor shot={active} episode={episode} onClose={() => setActiveId(null)} />
-      <ShotPreview shot={preview} episode={episode} onClose={() => setPreview(null)} />
+      <ShotPreview shot={preview ? shots.find(s => s.id === preview.id) ?? null : null} episode={episode} onClose={() => setPreview(null)} />
     </div>
   );
 }

@@ -1,0 +1,6 @@
+plugins { id 'base' }
+
+tasks.register('bootRun') { dependsOn ':api:bootRun' }
+tasks.register('bootJar') { dependsOn ':api:bootJar' }
+tasks.register('test') { dependsOn ':api:test' }
+tasks.named('check') { dependsOn ':api:check' }

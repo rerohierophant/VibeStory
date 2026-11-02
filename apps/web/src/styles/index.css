@@ -3,7 +3,8 @@
 
 /* 设计令牌映射：只引用 design/tokens.css 中的变量，不重复定义颜色 */
 @theme inline {
-  --color-base: var(--vibe-bg);
+  /* 避免背景色名称与 text-base 字号工具类冲突。 */
+  --color-canvas: var(--vibe-bg);
   --color-panel: var(--vibe-panel);
   --color-panel-2: var(--vibe-panel-2);
   --color-hover: var(--vibe-panel-hover);

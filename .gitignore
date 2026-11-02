@@ -26,12 +26,14 @@ htmlcov/
 playwright-report/
 test-results/
 *.tsbuildinfo
+.gradle/
 
 # Runtime data
 /data/
 /uploads/
 /generated/
 /logs/
+apps/api/data/
 *.log
 *.db
 *.sqlite

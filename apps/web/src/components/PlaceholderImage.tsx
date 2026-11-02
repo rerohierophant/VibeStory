@@ -27,6 +27,12 @@ interface Props {
  * ratio 传 null 表示不给宽高比，由父级（例如网格单元）决定尺寸。
  */
 export function PlaceholderImage({ seed, label, className = '', ratio = '16 / 9', rounded = 'rounded-card' }: Props) {
+  if (seed.startsWith('/api/') || seed.startsWith('data:image/')) {
+    return <div className={`relative overflow-hidden bg-black/25 ${rounded} ${className}`} style={{ aspectRatio: ratio ?? undefined }}>
+      <img src={seed} alt={label ?? '生成图片'} className="h-full w-full object-cover" loading="lazy" />
+      {label && <span className="absolute bottom-2 left-2.5 rounded bg-black/45 px-1.5 py-0.5 text-[10px] text-white/85">{label}</span>}
+    </div>;
+  }
   const h = hash(seed);
   const [dark, mid, light] = palettes[h % palettes.length];
   const x = 20 + (h % 55);

@@ -1,0 +1,254 @@
+[
+  {
+    "name": "paragraphs",
+    "story": "雨夜，街道上积水发亮。她推门走进便利店。\n\n货架后，店员放下牛奶。\n继母坐在客厅沙发上，茶几上有一张单据。",
+    "expected": [
+      {
+        "description": "雨夜，街道上积水发亮。她推门走进便利店。",
+        "dialogue": "",
+        "sceneName": "雨夜街道",
+        "shotSize": "全景",
+        "cameraMove": "固定",
+        "durationMs": 3000
+      },
+      {
+        "description": "货架后，店员放下牛奶。",
+        "dialogue": "",
+        "sceneName": "便利店",
+        "shotSize": "中景",
+        "cameraMove": "推",
+        "durationMs": 4000
+      },
+      {
+        "description": "继母坐在客厅沙发上，茶几上有一张单据。",
+        "dialogue": "",
+        "sceneName": "旧宅客厅",
+        "shotSize": "中景",
+        "cameraMove": "拉",
+        "durationMs": 5000
+      }
+    ]
+  },
+  {
+    "name": "quoted-attribution",
+    "story": "「要一份萝卜。」她说。店员抬起头，停顿片刻。\n她说：「不要放辣椒。」",
+    "expected": [
+      {
+        "description": "她说。店员抬起头，停顿片刻。",
+        "dialogue": "要一份萝卜。",
+        "sceneName": "便利店",
+        "shotSize": "近景",
+        "cameraMove": "固定",
+        "durationMs": 4000
+      },
+      {
+        "description": "人物近景，说出台词",
+        "dialogue": "不要放辣椒。",
+        "sceneName": "便利店",
+        "shotSize": "近景",
+        "cameraMove": "推",
+        "durationMs": 4000
+      }
+    ]
+  },
+  {
+    "name": "bare-quote",
+    "story": "「你终于回来了」\n「别走」。她开口。\n他问：「你等了多久？」",
+    "expected": [
+      {
+        "description": "人物近景，说出台词",
+        "dialogue": "你终于回来了",
+        "sceneName": "雨夜街道",
+        "shotSize": "近景",
+        "cameraMove": "固定",
+        "durationMs": 4000
+      },
+      {
+        "description": "。她开口。",
+        "dialogue": "别走",
+        "sceneName": "雨夜街道",
+        "shotSize": "近景",
+        "cameraMove": "推",
+        "durationMs": 4000
+      },
+      {
+        "description": "人物近景，说出台词",
+        "dialogue": "你等了多久？",
+        "sceneName": "雨夜街道",
+        "shotSize": "近景",
+        "cameraMove": "拉",
+        "durationMs": 4000
+      }
+    ]
+  },
+  {
+    "name": "headings",
+    "story": "一、第一幕\n路灯下落着雨。\n二、第二幕\n便利店的自动门缓缓打开。",
+    "expected": [
+      {
+        "description": "路灯下落着雨。",
+        "dialogue": "",
+        "sceneName": "雨夜街道",
+        "shotSize": "全景",
+        "cameraMove": "固定",
+        "durationMs": 3000
+      },
+      {
+        "description": "便利店的自动门缓缓打开。",
+        "dialogue": "",
+        "sceneName": "便利店",
+        "shotSize": "中景",
+        "cameraMove": "推",
+        "durationMs": 4000
+      }
+    ]
+  },
+  {
+    "name": "long-aggregation",
+    "story": "雨打在她的伞上，路灯把积水照成一片晃动的银色。她回头望着街道尽头久久没有说话。门口的风铃突然响了。店员递过纸碗，她低下头。",
+    "expected": [
+      {
+        "description": "雨打在她的伞上，路灯把积水照成一片晃动的银色。她回头望着街道尽头久久没有说话。",
+        "dialogue": "",
+        "sceneName": "雨夜街道",
+        "shotSize": "全景",
+        "cameraMove": "固定",
+        "durationMs": 3000
+      },
+      {
+        "description": "门口的风铃突然响了。店员递过纸碗，她低下头。",
+        "dialogue": "",
+        "sceneName": "便利店",
+        "shotSize": "中景",
+        "cameraMove": "推",
+        "durationMs": 4000
+      }
+    ]
+  },
+  {
+    "name": "single-long-sentence",
+    "story": "雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨。",
+    "expected": [
+      {
+        "description": "雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨",
+        "dialogue": "",
+        "sceneName": "雨夜街道",
+        "shotSize": "全景",
+        "cameraMove": "固定",
+        "durationMs": 3000
+      }
+    ]
+  },
+  {
+    "name": "custom-scenes",
+    "story": "古桥的风吹过石阶。门口灯光发亮。院子里桂花落下。",
+    "scenes": [
+      {
+        "name": "夜晚的古桥"
+      },
+      {
+        "name": "旧宅，院子"
+      }
+    ],
+    "expected": [
+      {
+        "description": "古桥的风吹过石阶。门口灯光发亮。院子里桂花落下。",
+        "dialogue": "",
+        "sceneName": "夜晚的古桥",
+        "shotSize": "全景",
+        "cameraMove": "固定",
+        "durationMs": 3000
+      }
+    ]
+  },
+  {
+    "name": "custom-keywords",
+    "story": "桂花和路灯照着石阶。",
+    "scenes": [
+      {
+        "name": "自选甲",
+        "keywords": []
+      },
+      {
+        "name": "自选乙",
+        "keywords": [
+          "桂花",
+          "石阶"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "description": "桂花和路灯照着石阶。",
+        "dialogue": "",
+        "sceneName": "自选乙",
+        "shotSize": "全景",
+        "cameraMove": "固定",
+        "durationMs": 3000
+      }
+    ]
+  },
+  {
+    "name": "empty-quotes",
+    "story": "「」雨夜的路灯亮了。店员递来纸碗。",
+    "expected": [
+      {
+        "description": "雨夜的路灯亮了。店员递来纸碗。",
+        "dialogue": "",
+        "sceneName": "雨夜街道",
+        "shotSize": "全景",
+        "cameraMove": "固定",
+        "durationMs": 3000
+      }
+    ]
+  },
+  {
+    "name": "unicode-crlf",
+    "story": "﻿　雨夜街道🙂。\r\n\r\n　「回来啦！」她喊。\r\n便利店里有热牛奶。 ",
+    "expected": [
+      {
+        "description": "雨夜街道🙂。",
+        "dialogue": "",
+        "sceneName": "雨夜街道",
+        "shotSize": "全景",
+        "cameraMove": "固定",
+        "durationMs": 3000
+      },
+      {
+        "description": "人物近景，说出台词",
+        "dialogue": "回来啦！",
+        "sceneName": "雨夜街道",
+        "shotSize": "近景",
+        "cameraMove": "推",
+        "durationMs": 4000
+      },
+      {
+        "description": "便利店里有热牛奶。",
+        "dialogue": "",
+        "sceneName": "便利店",
+        "shotSize": "中景",
+        "cameraMove": "拉",
+        "durationMs": 5000
+      }
+    ]
+  },
+  {
+    "name": "punctuation",
+    "story": "她问：「真的吗？」他答：「当然！」。门外又响起脚步声。",
+    "expected": [
+      {
+        "description": "她问：他答：。门外又响起脚步声。",
+        "dialogue": "真的吗？",
+        "sceneName": "雨夜街道",
+        "shotSize": "近景",
+        "cameraMove": "固定",
+        "durationMs": 4000
+      }
+    ]
+  },
+  {
+    "name": "empty",
+    "story": "\n　\n一、标题\n",
+    "expected": []
+  }
+]

@@ -1,0 +1,114 @@
+spring:
+  application:
+    name: vibestory-api
+  profiles:
+    default: local
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/vibestory}
+    username: ${DATABASE_USER:vibestory}
+    password: ${DATABASE_PASSWORD:}
+    hikari:
+      maximum-pool-size: 10
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    connection-timeout: 3s
+    template:
+      mandatory: true
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  jooq:
+    sql-dialect: POSTGRES
+  mvc:
+    problemdetails:
+      enabled: true
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+  jackson:
+    default-property-inclusion: non_null
+    deserialization:
+      fail-on-unknown-properties: true
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${PORT:8080}
+  servlet:
+    session:
+      timeout: 8h
+      cookie:
+        http-only: true
+        same-site: lax
+  error:
+    include-message: never
+    include-stacktrace: never
+vibestory:
+  mock-only: ${MOCK_ONLY:false}
+  seed:
+    email: ${SEED_EMAIL:}
+    password: ${SEED_PASSWORD:}
+  dispatch:
+    mode: ${DISPATCH_MODE:database}
+    role: ${APP_ROLE:all}
+    namespace: ${MQ_NAMESPACE:vibestory}
+    relay-enabled: ${RELAY_ENABLED:true}
+    prefetch: ${MQ_PREFETCH:2}
+    text-slots: ${TEXT_SLOTS:1}
+    image-slots: ${IMAGE_SLOTS:2}
+    video-slots: ${VIDEO_SLOTS:2}
+    max-failures: 5
+    confirm-timeout: 5s
+    relay-lease: 15s
+    redelivery-after: 30s
+  worker:
+    enabled: ${WORKER_ENABLED:true}
+    concurrency: 2
+    poll-interval: 500ms
+    lease-duration: 90s
+    heartbeat-interval: 30s
+    max-attempts: 3
+  mock:
+    delay: ${MOCK_DELAY:3s}
+    failure-rate: ${MOCK_FAILURE_RATE:0}
+    failure-mode: ${MOCK_FAILURE_MODE:known}
+  text:
+    provider: ${TEXT_PROVIDER:mock}
+    base-url: ${TEXT_BASE_URL:https://api.deepseek.com}
+    model: ${TEXT_MODEL:deepseek-flash}
+    api-key: ${TEXT_API_KEY:}
+    timeout: ${TEXT_TIMEOUT:120s}
+    max-tokens: ${TEXT_MAX_TOKENS:8192}
+    disable-thinking: ${TEXT_DISABLE_THINKING:true}
+  image:
+    provider: ${IMAGE_PROVIDER:mock}
+    base-url: ${IMAGE_BASE_URL:https://api.minimax.cn/v1}
+    model: ${IMAGE_MODEL:image-01}
+    api-key: ${IMAGE_API_KEY:}
+    timeout: ${IMAGE_TIMEOUT:120s}
+  video:
+    provider: ${VIDEO_PROVIDER:mock}
+    base-url: ${VIDEO_BASE_URL:https://api.minimax.cn/v1}
+    model: ${VIDEO_MODEL:MiniMax-Hailuo-2.3-Fast}
+    api-key: ${VIDEO_API_KEY:${IMAGE_API_KEY:}}
+    timeout: ${VIDEO_TIMEOUT:60s}
+    poll-interval: ${VIDEO_POLL_INTERVAL:5s}
+    generation-timeout: ${VIDEO_GENERATION_TIMEOUT:20m}
+  storage:
+    root: ${STORAGE_ROOT:./data/storage}
+logging:
+  structured:
+    format:
+      console: logstash
+  level:
+    org.jooq.Constants: WARN

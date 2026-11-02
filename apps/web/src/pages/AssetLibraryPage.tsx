@@ -15,14 +15,14 @@ const copy: Record<
     unit: '个角色',
     emptyTitle: '还没有角色',
     emptyDesc: '拆解这一集的剧本后，角色会从台词和描述里自动抽取，在这里定妆。',
-    note: '角色是跨集复用的：同一个人物在不同集里用同一张基准形象，才能接上戏。',
+    note: '人物资产可跨集复用；切换基准版本用于后续生成，已有分镜图保留原生成来源。',
   },
   scene: {
     title: '场景库',
     unit: '个场景',
     emptyTitle: '还没有场景',
     emptyDesc: '拆解后，镜头里出现的场景会被归到这里，同样需要一张基准图。',
-    note: '场景基准图决定机位、光线和空间关系；换掉它，之前基于旧图的分镜会标记为陈旧。',
+    note: '场景资产可跨集复用；切换基准版本用于后续生成，已有分镜图保留原生成来源。',
   },
 };
 
@@ -110,7 +110,7 @@ export function AssetLibraryPage({ kind }: { kind: AssetKind }) {
         ) : visible.length === 0 ? (
           <EmptyState title="没有匹配的资产" description="换个关键词试试。" />
         ) : (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,28rem),1fr))] gap-4">
             {visible.map((a) => {
               const use = usage.get(a.name);
               return (

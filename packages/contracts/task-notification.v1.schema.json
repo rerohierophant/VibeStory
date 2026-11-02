@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VibeStory TaskNotification v1",
+  "description": "Internal RabbitMQ notification. Database snapshots remain authoritative. No prompt, credential, media or generation parameter belongs here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "eventId", "taskId", "dispatchGeneration", "type", "userId", "projectId"],
+  "properties": {
+    "schemaVersion": {"type": "integer", "const": 1},
+    "eventId": {"type": "string", "format": "uuid"},
+    "taskId": {"type": "integer", "format": "int64", "minimum": 1},
+    "dispatchGeneration": {"type": "integer", "format": "int64", "minimum": 1},
+    "type": {"type": "string", "enum": ["BREAKDOWN", "IMAGE", "ASSET_IMAGE", "VIDEO"]},
+    "userId": {"type": "integer", "format": "int64", "minimum": 1},
+    "projectId": {"type": "integer", "format": "int64", "minimum": 1},
+    "episodeId": {"type": ["integer", "null"], "format": "int64", "minimum": 1}
+  }
+}

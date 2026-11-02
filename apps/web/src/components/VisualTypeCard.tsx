@@ -18,7 +18,7 @@ export function StyleSwatch({ preset, ratio, className = '' }: SwatchProps) {
         src={preset.image}
         alt=""
         className={`block w-full object-cover ${className}`}
-        style={{ aspectRatio: ratio }}
+        style={{ aspectRatio: ratio, objectPosition: preset.imagePosition }}
       />
     );
   }
@@ -61,7 +61,7 @@ export function VisualTypeCard({ preset, selected, className = '', ...rest }: Ca
       role="radio"
       aria-checked={selected}
       aria-label={`${preset.label}，${preset.hint}`}
-      className={`group relative overflow-hidden rounded-card border text-left transition ${
+      className={`group relative w-full overflow-hidden rounded-card border text-left transition ${
         selected
           ? 'border-accent shadow-[0_0_0_1px_var(--vibe-accent),0_0_24px_rgba(123,87,224,0.28)]'
           : 'border-stroke/25 hover:border-stroke/50'

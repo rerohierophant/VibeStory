@@ -65,7 +65,7 @@ export function AssetsPage() {
               <Badge tone="muted">{active.count}</Badge>
             </div>
             <p className="mt-1 text-sm text-muted">
-              跨项目的{scope === 'character' ? '角色' : '场景'}基准图。换掉基准版本，依赖它的分镜会被标记为陈旧。
+              跨项目的{scope === 'character' ? '角色' : '场景'}资产。切换基准版本用于后续生成，已有分镜图保留原生成来源。
             </p>
           </div>
           <input
@@ -107,7 +107,7 @@ export function AssetsPage() {
             }
           />
         ) : (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,28rem),1fr))] gap-4">
             {rows.map(({ kind, asset }) => {
               const use = usage.get(`${asset.projectId}:${asset.name}`);
               return (

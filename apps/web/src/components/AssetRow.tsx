@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { Badge } from '@/components/Badge';
 import { Button } from '@/components/Button';
 import { PlaceholderImage } from '@/components/PlaceholderImage';
@@ -53,6 +54,8 @@ export function AssetRow({
   onOpenProject?: () => void;
 }) {
   const { addAssetVersion, selectAssetVersion } = useStore();
+  const upload = useRef<HTMLInputElement>(null);
+  const busy = asset.generationState === 'queued' || asset.generationState === 'running';
   const selected = asset.versions.find((v) => v.id === asset.selectedVersionId);
 
   return (
@@ -67,9 +70,9 @@ export function AssetRow({
       </div>
 
       <div className="flex min-w-0 flex-col gap-3">
-        <header className="flex items-start justify-between gap-3">
+        <header className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h3 className="truncate text-sm font-medium">{asset.name}</h3>
               {projectName && <Badge tone="muted">{projectName}</Badge>}
             </div>
@@ -93,10 +96,12 @@ export function AssetRow({
         </div>
 
         <div className="flex flex-wrap gap-2 pt-1">
-          <Button size="sm" variant="outline" onClick={() => addAssetVersion(kind, asset.id, 'generated')}>
-            生成一版
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => addAssetVersion(kind, asset.id, 'generated')}>
+            {busy ? '生成中…' : asset.generationState === 'unknown' ? '确认重试' : asset.generationState === 'failed' ? '重试' : '生成一版'}
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => addAssetVersion(kind, asset.id, 'uploaded')}>
+          <input ref={upload} type="file" accept="image/jpeg,image/png" className="hidden" aria-label={`上传${asset.name}参考图`}
+            onChange={e => { const file = e.target.files?.[0]; if (file) addAssetVersion(kind, asset.id, 'uploaded', file); e.target.value = ''; }} />
+          <Button size="sm" variant="ghost" onClick={() => upload.current?.click()}>
             上传参考图
           </Button>
           {onOpenProject && (

@@ -4,7 +4,7 @@ import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { Modal } from '@/components/Modal';
 import { PlaceholderImage } from '@/components/PlaceholderImage';
-import { StyleSwatch, VisualTypeCard } from '@/components/VisualTypeCard';
+import { VisualTypeCard } from '@/components/VisualTypeCard';
 import { timeAgo } from '@/lib/id';
 import { readStyleImage } from '@/lib/image';
 import { useStore, useProjects } from '@/lib/store';
@@ -35,29 +35,21 @@ function ProjectCard({
   onRename: () => void;
   onDelete: () => void;
 }) {
-  const preset = resolveStyle(project.visualType, customStyles);
-
   return (
     <article className="group relative overflow-hidden rounded-card border border-stroke/20 bg-panel transition hover:border-stroke/40">
       <button type="button" onClick={onOpen} className="block w-full text-left">
         <span className="relative block overflow-hidden">
-          {preset ? (
-            <StyleSwatch
-              preset={preset}
-              ratio="465 / 300"
-              className="transition duration-500 group-hover:scale-[1.02]"
-            />
-          ) : (
-            <PlaceholderImage
-              seed={project.name}
-              ratio="465 / 300"
-              rounded="rounded-none"
-              className="transition duration-500 group-hover:scale-[1.02]"
-            />
-          )}
+          {/* 项目封面独立于风格参考图；当前未接入封面，按项目身份显示占位。 */}
+          <PlaceholderImage
+            seed={project.id}
+            label="暂无封面"
+            ratio="465 / 300"
+            rounded="rounded-none"
+            className="transition duration-500 group-hover:scale-[1.02]"
+          />
           {/* 风格标签压在图上：卡片宽度有限，文字区留给项目名和风格描述 */}
           <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full border border-white/10 bg-black/50 px-2 py-0.5 text-[11px] leading-5 text-white/85 backdrop-blur">
-            {visualLabel(project.visualType, customStyles)}
+            {project.visualPreset?.label ?? visualLabel(project.visualType, customStyles)}
           </span>
         </span>
         <div className="space-y-2 p-4">
@@ -109,7 +101,7 @@ function NewProjectModal({ open, onClose }: { open: boolean; onClose: () => void
     setUploading(true);
     try {
       const image = await readStyleImage(file);
-      const id = addCustomStyle({ label: file.name.replace(/\.[^.]+$/, ''), image });
+      const id = await addCustomStyle({ label: file.name.replace(/\.[^.]+$/, ''), image });
       setVisualType(id);
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : '图片处理失败');
@@ -118,17 +110,19 @@ function NewProjectModal({ open, onClose }: { open: boolean; onClose: () => void
     }
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (!name.trim()) {
       setError('项目名称不能为空');
       return;
     }
-    const id = createProject({ name, visualType, style });
+    try {
+    const id = await createProject({ name, visualType, style });
     setName('');
     setStyle('');
     setError('');
     onClose();
     navigate(`/projects/${id}`);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : '创建失败'); }
   };
 
   return (
@@ -211,7 +205,7 @@ function NewProjectModal({ open, onClose }: { open: boolean; onClose: () => void
                         removeCustomStyle(p.id);
                         if (visualType === p.id) setVisualType(DEFAULT_VISUAL_TYPE);
                       }}
-                      className="absolute -right-1.5 -top-1.5 hidden h-5 w-5 items-center justify-center rounded-full border border-stroke/40 bg-base text-[10px] text-muted hover:text-error group-hover/card:flex"
+                      className="absolute -right-1.5 -top-1.5 hidden h-5 w-5 items-center justify-center rounded-full border border-stroke/40 bg-canvas text-[10px] text-muted hover:text-error group-hover/card:flex"
                     >
                       ×
                     </button>
@@ -244,7 +238,7 @@ function NewProjectModal({ open, onClose }: { open: boolean; onClose: () => void
             {uploadError && <p className="mt-2 text-[11px] text-error">{uploadError}</p>}
             {category === 'custom' && customStyles.length === 0 && (
               <p className="mt-2 text-[11px] leading-5 text-muted/70">
-                上传一张你喜欢的画面作为基准，AI 会按它的光影与色调生成分镜。图片只存在本机浏览器里。
+                上传一张你喜欢的画面作为风格参考。当前生成使用风格名称与描述，参考图随条目保存。
               </p>
             )}
           </div>
@@ -256,7 +250,7 @@ function NewProjectModal({ open, onClose }: { open: boolean; onClose: () => void
                 ['上传故事文本', '粘贴或上传 .txt / .md，原文会保留。'],
                 ['AI 拆解镜头', '按集拆成镜头清单，逐条可编辑，确认后才进入生产。'],
                 ['资产定妆', '从台本抽取角色与场景，各自选定一张基准形象。'],
-                ['生成分镜', '逐镜文生图，角色与场景的基准图自动参与。'],
+                ['生成分镜', '逐镜生成候选，固定记录人物与场景的来源版本。'],
                 ['出视频', '以选定的分镜图为首帧，生成动态片段。'],
               ].map(([title, desc], i) => (
                 <li key={title} className="flex gap-3">
@@ -286,7 +280,7 @@ function NewProjectModal({ open, onClose }: { open: boolean; onClose: () => void
       </div>
 
       <div className="sticky bottom-0 flex items-center justify-between gap-3 rounded-b-modal border-t border-stroke/20 bg-panel/95 px-8 py-4 backdrop-blur">
-        <p className="text-[11px] text-muted/70">创建后仍可修改画面风格，已生成的分镜会标记为陈旧。</p>
+        <p className="text-[11px] text-muted/70">画面风格用于后续分镜生成，已有分镜图保留原生成来源。</p>
         <div className="flex items-center gap-3">
           <Button variant="ghost" onClick={onClose}>
             取消
@@ -316,7 +310,8 @@ export function IndexPage() {
   }, [shots]);
 
   const categoryOf = (visualType: VisualType): VisualCategory | undefined =>
-    findVisualPreset(visualType)?.category ?? (customStyles.some((p) => p.id === visualType) ? 'custom' : undefined);
+    findVisualPreset(visualType)?.category ?? projects.find(p => p.visualType === visualType)?.visualPreset?.category ??
+      (customStyles.some((p) => p.id === visualType) ? 'custom' : undefined);
 
   const visible = projects.filter(
     (p) =>

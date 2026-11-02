@@ -115,9 +115,11 @@ export function ProjectLayout() {
 
   const allConfirmed = episodes.length > 0 && shots.length > 0 && shots.every((s) => s.status === 'confirmed');
 
-  const addEpisode = () => {
-    const newId = createEpisode(project.id);
+  const addEpisode = async () => {
+    try {
+    const newId = await createEpisode(project.id);
     navigate(`/projects/${project.id}/episodes/${newId}/story`);
+    } catch { /* Store displays the scoped API error. */ }
   };
 
   return (

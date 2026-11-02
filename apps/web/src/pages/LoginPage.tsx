@@ -5,10 +5,10 @@ import { Button } from '@/components/Button';
 import { Logo } from '@/components/Logo';
 
 export function LoginPage() {
-  const { login, user } = useStore();
+  const { login, user, mode } = useStore();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('creator@vibestory.dev');
-  const [password, setPassword] = useState('demo1234');
+  const [email, setEmail] = useState(mode === 'demo' ? 'creator@vibestory.dev' : '');
+  const [password, setPassword] = useState(mode === 'demo' ? 'demo1234' : '');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -16,7 +16,7 @@ export function LoginPage() {
     if (user) navigate('/', { replace: true });
   }, [user, navigate]);
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!email.includes('@')) {
       setError('请输入有效邮箱');
@@ -28,10 +28,11 @@ export function LoginPage() {
     }
     setError('');
     setLoading(true);
-    window.setTimeout(() => {
-      login(email.trim());
+    try {
+      await login(email.trim(), password);
       navigate('/', { replace: true });
-    }, 350);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : '登录失败'); }
+    finally { setLoading(false); }
   };
 
   return (
@@ -60,7 +61,7 @@ export function LoginPage() {
               每一镜都是独立事务：改一镜，不动其余。
             </p>
             <div className="mt-10 flex flex-wrap gap-2 text-xs text-muted">
-              {['文本拆解', '资产版本', '分镜图', '图生视频', '陈旧标记'].map((tag) => (
+              {['文本拆解', '资产版本', '分镜图', '图生视频', '来源追溯'].map((tag) => (
                 <span key={tag} className="rounded-full border border-white/10 px-3 py-1">
                   {tag}
                 </span>
@@ -68,7 +69,7 @@ export function LoginPage() {
             </div>
           </div>
 
-          <p className="text-xs text-muted/60">原型演示环境 · 数据保存在本机浏览器</p>
+          <p className="text-xs text-muted/60">{mode === 'api' ? '原型工作台 · 数据持久化保存在后端' : '离线演示 · 数据保存在本机浏览器'}</p>
         </div>
       </section>
 
@@ -110,10 +111,7 @@ export function LoginPage() {
           </Button>
 
           <div className="mt-6 flex items-center justify-between text-xs text-muted">
-            <span>演示账号已预填</span>
-            <button type="button" className="hover:text-fg">
-              忘记密码？
-            </button>
+            <span>{mode === 'demo' ? '演示账号已预填' : '使用本机后端已创建的账号'}</span>
           </div>
         </form>
       </section>

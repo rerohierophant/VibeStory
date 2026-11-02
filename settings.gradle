@@ -1,0 +1,3 @@
+rootProject.name = 'vibestory'
+include 'api'
+project(':api').projectDir = file('apps/api')

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Badge, ShotStatusBadge } from '@/components/Badge';
 import { Button } from '@/components/Button';
 import { PlaceholderImage } from '@/components/PlaceholderImage';
+import { ImageGenerationSource } from '@/components/ImageGenerationSource';
 import { useStore } from '@/lib/store';
 import type { CameraMove, Episode, Shot, ShotSize } from '@/lib/types';
 
@@ -57,12 +58,18 @@ export function ShotEditor({
         </header>
 
         <div className="flex-1 space-y-5 overflow-y-auto scroll-thin p-5">
-          {image && <PlaceholderImage seed={image.seed} ratio="16 / 9" label={`已选 ${image.label}`} />}
+          {image && (
+            <>
+              <PlaceholderImage seed={image.seed} ratio="16 / 9" label={`已选 ${image.label}`} />
+              <ImageGenerationSource image={image} />
+            </>
+          )}
 
           <fieldset className="space-y-4">
             <label className="block text-xs text-muted">
               画面描述
               <textarea
+                aria-label="画面描述"
                 className="field mt-1.5 min-h-24 resize-y text-sm disabled:opacity-60"
                 value={shot.description}
                 onChange={(e) => set({ description: e.target.value })}
@@ -72,6 +79,7 @@ export function ShotEditor({
             <label className="block text-xs text-muted">
               台词
               <textarea
+                aria-label="台词"
                 className="field mt-1.5 min-h-16 resize-y text-sm disabled:opacity-60"
                 value={shot.dialogue}
                 onChange={(e) => set({ dialogue: e.target.value })}
@@ -133,7 +141,7 @@ export function ShotEditor({
             </div>
 
             <div className="text-xs text-muted">
-              引用资产
+              下次生成引用
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {shot.characterNames.length === 0 && (
                   <span className="text-muted/60">未识别角色</span>
@@ -146,7 +154,7 @@ export function ShotEditor({
                 <Badge tone="neutral">{shot.sceneName}</Badge>
               </div>
               <p className="mt-2 text-[11px] leading-5 text-muted/70">
-                生成分镜图时会自动带上这些资产的当前基准版本。
+                提交时记录这些资产的当前基准版本，实际参考图输入以模型能力为准。
               </p>
             </div>
           </fieldset>
