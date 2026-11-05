@@ -1,3 +1,5 @@
 rootProject.name = 'vibestory'
-include 'api'
+include 'api', 'agent', 'mcp'
 project(':api').projectDir = file('apps/api')
+project(':agent').projectDir = file('apps/agent')
+project(':mcp').projectDir = file('apps/mcp')

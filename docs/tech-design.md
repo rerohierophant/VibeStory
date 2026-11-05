@@ -4,7 +4,7 @@
 
 > **规格来源**：`apps/web` 的已实现页面是这一版的字段与交互事实。本文中凡与页面冲突的描述，一律以页面为准并已改写；页面没有入口的功能不进后端。与上一版的差异见 §18。
 
-> **实现状态（2026-11-02）**：阶段一至八已实现，支持 DeepSeek 文本、MiniMax 图片 / 视频与 Mock，前后端 API、任务观测、整集批次和 RabbitMQ 独立 Worker 已接通。真实视频历史仅生成一次；本轮全部 Mock / 本机 HTTP fixture。第八阶段 Redis 共享提交准入已实现；运行与验收见 [backend-phase8.md](backend-phase8.md)。当前接口以代码与 springdoc 为准；第七阶段实现与验收边界见 [backend-phase7.md](backend-phase7.md)。
+> **实现状态（2026-11-05）**：当前原型范围已实现至阶段十三。生成链路、RabbitMQ / Redis 之外，已实现团队协作、分镜方案、主 / 子 Agent、Markdown Skill 文件库、三层上下文压缩，以及图片纠正、用户偏好与版本化配方。最新独立 PostgreSQL 全 Mock 验收为 189 项后端、17 项组件、17 项 Chrome，见 [image-learning.md](image-learning.md)；Agent 设计与迁移限制见 [backend-phase12.md](backend-phase12.md)。支持 DeepSeek 文本、MiniMax 图片 / 视频与 Mock，真实视频历史仅生成一次，本轮未调用真实供应商。当前接口以页面、代码与 springdoc 为准；中间件专项分别见 [backend-phase7.md](backend-phase7.md)和 [backend-phase8.md](backend-phase8.md)，不与本次数据库模式回归混计。
 
 ## 1. 总体结构
 
@@ -551,7 +551,7 @@ MySQL 8 也能做，但三处能力对不上：
 | | 原型（本仓库） | 实际产品（如 ArcReel） |
 | --- | --- | --- |
 | 目的 | 证明后端、Agent、全栈工程能力 | 解决真实用户的持续生产需求 |
-| 用户 | 单个创作者，可自建账号 | 多租户、有权限与计费 |
+| 用户 | 私有个人项目、固定团队角色和项目共享 | 产品级多租户、细粒度权限与计费 |
 | 供应商 | Mock + DeepSeek 文本 + MiniMax 图片 / 视频 | 多家，能力差异矩阵 |
 | 部署 | 本地 Docker Compose，单人演示 | 自托管 / SaaS，升级、备份、迁移 |
 | 数据规模 | 演示数据，几十个项目 | 多租户数据，容量与归档 |
@@ -563,7 +563,7 @@ MySQL 8 也能做，但三处能力对不上：
 
 以下每一条都是产品必须有、原型故意省略的，砍掉是为了让链路可交付：
 
-- **多租户与权限模型**：只有「本人访问本人资源」，没有组织、成员、角色、共享。
+- **产品级多租户与权限模型**：原型支持固定团队角色与团队项目共享，范围不包括部门树、项目级 ACL、SSO 或租户运维。详见[阶段十记录](backend-phase10-team-management.md)。
 - **计费与支付**：只记录任务与 attempt，不估算或核对费用；本期不做用量页面、扣款、结算或发票。
 - **内容安全**：不接入审核服务；生成内容的合规由供应商承担。
 - **多供应商矩阵**：仅 DeepSeek 文本与 MiniMax 图片 / 视频，另保留 Mock；不扩展通用模型矩阵。

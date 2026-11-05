@@ -39,6 +39,7 @@ public class Shot {
     public long id() { return id; }
     public long episodeId() { return episodeId; }
     public long projectId() { return projectId; }
+    public long version() { return version; }
     public String sceneName() { return sceneName; }
     public List<String> characterNames() { return characterNames; }
     public void bind(String scene, List<String> characters) { sceneName = scene; characterNames = characters; }

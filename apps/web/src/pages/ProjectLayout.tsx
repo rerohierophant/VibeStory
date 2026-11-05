@@ -74,7 +74,7 @@ export function ProjectLayout() {
   const { id = '' } = useParams();
   const project = useProject(id);
   const shots = useProjectShots(id);
-  const { characters, scenes, createEpisode } = useStore();
+  const { characters, scenes, createEpisode, workspaceLoading, workspaceTeam, workspaceReadOnly } = useStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [episodeFilter, setEpisodeFilter] = useState('');
@@ -92,6 +92,7 @@ export function ProjectLayout() {
   }, [shots]);
 
   if (!project) {
+    if (workspaceLoading) return <div className="grid h-full place-items-center text-sm text-muted">正在读取项目…</div>;
     return (
       <div className="flex min-h-full items-center justify-center p-10">
         <EmptyState
@@ -142,8 +143,8 @@ export function ProjectLayout() {
               </Link>
             ) : (
               <>
-                <Link to="/" className="text-xs text-muted transition hover:text-fg">
-                  ‹ 项目
+                <Link to={project.teamId ? `/teams/${project.teamId}` : '/'} className="text-xs text-muted transition hover:text-fg">
+                  {project.teamId ? '‹ 团队' : '‹ 项目'}
                 </Link>
                 <span className="h-4 w-px bg-stroke/25" />
                 <NavLink
@@ -159,6 +160,7 @@ export function ProjectLayout() {
           </div>
           {!collapsed && (
             <p className="shrink-0 px-1 pb-4 text-[11px] text-muted">
+              {workspaceTeam && <span className="mb-1 block">{workspaceTeam.name}{workspaceReadOnly && ' · 只读'}</span>}
               {project.style || '未填写风格'}
               {episodes.length > 0 && ` · ${episodes.length} 集`}
             </p>
@@ -224,6 +226,7 @@ export function ProjectLayout() {
               <button
                 type="button"
                 onClick={addEpisode}
+                disabled={workspaceReadOnly}
                 title="新建一集"
                 className="flex h-8 w-8 items-center justify-center rounded text-muted transition hover:bg-hover/60 hover:text-fg"
               >
@@ -239,6 +242,7 @@ export function ProjectLayout() {
                 <button
                   type="button"
                   onClick={addEpisode}
+                  disabled={workspaceReadOnly}
                   title="新建一集"
                   className="flex h-6 w-6 items-center justify-center rounded text-muted transition hover:bg-hover/60 hover:text-fg"
                 >

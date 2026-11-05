@@ -8,6 +8,10 @@ VibeStory 是 AIGC 视频创作工作台，用于展示后端、Agent 和全栈�
 
 阶段八已实现：可选 Redis 8.10.3 / Lua 共享生成提交令牌桶，MiniMax 图片 / 视频共用桶，文本独立；数据库延迟 Outbox、短许可在实际请求前校验、故障关闭与单一恢复代次从零补充。已有 external ID 恢复不占新生成额度。默认 `ADMISSION_ENABLED=false`，启用须用 rabbit 模式；`scripts/dev-redis.sh api|worker` 强制 Mock。所有进程须共享准入开关、namespace、凭证配置 ID 与 rate/burst。真实 Redis 专项 17 项，另有双 JVM / 实际 Redis 停机重启 / 桶丢失 / Chrome 验收；详见 `docs/backend-phase8.md`。Redis 不是任务事实源、任务锁或缓存；不承诺供应商端精确 QPS 或全局在途并发。
 
+阶段十二已实现：主 / 子 Agent、Markdown Skill 文件库与受控业务工具三层执行。Skill 的唯一可编辑来源为根目录 skills/<name>/SKILL.md，动态扫描，不在 Java 中注册；个人覆盖在 skills/users/<userId>/，API 与 Agent 共用文件读写，运行冻结正文与哈希快照。主会话通过 function calling 按需加载 Skill、直接操作或派发剧本 / 分镜子 Agent；子会话独立读取冻结输入，通过工具提交草稿并按校验错误多轮修复。运行、模型请求与工具回执持久化，页面与对话共用业务执行与版本校验。上下文采用大工具结果持久化外置、旧工具正文裁剪、全量原始存档摘要三层渐进压缩，不做 History Snip；原始记录不被投影覆盖，按作用域分页回读，摘要检查点 / 调用 / usage 持久化，真实摘要请求丢失为 UNKNOWN。新增 V20 / V21 / V22，独立 PostgreSQL 全 Mock 验收为 181 项后端、17 项组件、16 项浏览器，含 HTTP 崩溃恢复；未调用真实供应商。压缩压力样本的字节统计不代表真实 token 或语义摘要质量。分集规划仍为服务端窗口任务，媒体仍由原 Worker 执行，尚无审图 / 审片 Agent。共享 Redis 文本准入启用时暂停新增 Agent 模型运行。旧开发库缺少原始 V18 迁移，沿用前需恢复原文件或改用独立库。当前实现和验收以 `docs/backend-phase12.md` 为准，上文早期阶段的“Agent 尚未实现”只描述历史状态。
+
+阶段十三已实现：个人项目图片纠正与明确评价、素材 / 项目 / 个人范围的可编辑偏好、文字槽位与跨项目绑定的不可变配方版本。页面与 Agent 共用受控服务，普通、批次与方案出图冻结实际使用的偏好和配方；保存偏好与配方需用户明确满意，任务完成不等同满意。新增 V23，最新独立 PostgreSQL 全 Mock 验收为 189 项后端、17 项组件、17 项浏览器，类型、契约、构建与 HTTP 崩溃恢复通过，失败 / 跳过 / 浏览器重试均为零。未调用真实供应商，未验证视觉质量或返工减少。当前原型范围与验收见 `docs/image-learning.md`，此前各阶段数量保留为历史记录。
+
 **页面是规格来源**：`apps/web` 的已实现交互与 `apps/web/src/lib/types.ts` 的字段形状优先于 `docs/` 中的任何旧表述；两者冲突时以页面为准，并同步修订文档。
 
 ## 原型定位

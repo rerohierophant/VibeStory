@@ -7,6 +7,10 @@ if [[ -f .env ]]; then
   source .env
   set +a
 fi
+# A separate database keeps running development Workers away from verification media.
+if [[ -n "${VERIFY_DATABASE_URL:-}" ]]; then
+  export DATABASE_URL="$VERIFY_DATABASE_URL"
+fi
 export DISPATCH_MODE=database APP_ROLE=all ADMISSION_ENABLED=false
 export TEXT_PROVIDER=mock IMAGE_PROVIDER=mock VIDEO_PROVIDER=mock MOCK_ONLY=true
 export TEXT_API_KEY='' IMAGE_API_KEY='' VIDEO_API_KEY=''

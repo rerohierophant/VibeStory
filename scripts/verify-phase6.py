@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -38,6 +39,10 @@ def main():
         results = [ET.parse(path).getroot() for path in (ROOT / 'apps/api/build/test-results/test').glob('TEST-*.xml')]
         summary['backend'] = {key: sum(int(result.attrib.get(key, 0)) for result in results) for key in ['tests', 'failures', 'errors', 'skipped']}
         assert results and summary['backend']['failures'] == summary['backend']['errors'] == summary['backend']['skipped'] == 0
+        context_report = ROOT / 'apps/api/build/verification/agent-context.json'
+        if context_report.exists():
+            shutil.copy2(context_report, runtime / 'agent-context.json')
+            summary['agentContext'] = json.loads(context_report.read_text())
         step('openapi', [sys.executable, 'scripts/export-openapi.py'])
         step('contracts', ['npm', 'run', 'generate'], ROOT / 'packages/contracts')
         step('components', ['npm', 'test', '--', '--reporter=json', f'--outputFile={runtime / "components.json"}'], ROOT / 'apps/web')

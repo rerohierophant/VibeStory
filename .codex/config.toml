@@ -1,0 +1,6 @@
+[mcp_servers.vibestory]
+command = "/bin/bash"
+args = ["-c", 'exec "$(git rev-parse --show-toplevel)/scripts/dev-mcp.sh"']
+cwd = "."
+env_vars = ["VIBESTORY_MCP_URL", "VIBESTORY_MCP_EMAIL", "VIBESTORY_MCP_PASSWORD"]
+default_tools_approval_mode = "writes"

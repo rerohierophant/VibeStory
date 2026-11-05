@@ -136,7 +136,7 @@ def main():
     def start(delay):
         nonlocal process
         env = {**os.environ, "ADMISSION_ENABLED": "false", "DISPATCH_MODE": "database", "APP_ROLE": "all", "SEED_EMAIL": email, "SEED_PASSWORD": password,
-               "STORAGE_ROOT": str(ROOT / "data/storage"), "WORKER_ENABLED": "true"}
+               "STORAGE_ROOT": str(runtime / "storage"), "WORKER_ENABLED": "true"}
         if not args.real_text and not args.real_image:
             env.update(MOCK_ONLY="true", TEXT_API_KEY="", IMAGE_API_KEY="", VIDEO_API_KEY="")
         log = (runtime / f"boot-{len(logs)}.log").open("wb")

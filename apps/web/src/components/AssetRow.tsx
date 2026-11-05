@@ -4,6 +4,7 @@ import { Button } from '@/components/Button';
 import { PlaceholderImage } from '@/components/PlaceholderImage';
 import { useStore } from '@/lib/store';
 import type { AssetVersion, Character, SceneAsset } from '@/lib/types';
+import { ImageLearning } from '@/features/ImageLearning';
 
 export type AssetKind = 'character' | 'scene';
 
@@ -11,10 +12,12 @@ export function VersionStrip({
   versions,
   selectedId,
   onSelect,
+  readOnly,
 }: {
   versions: AssetVersion[];
   selectedId?: string;
   onSelect: (id: string) => void;
+  readOnly?: boolean;
 }) {
   return (
     <div className="flex flex-wrap gap-2">
@@ -22,6 +25,7 @@ export function VersionStrip({
         <button
           key={v.id}
           type="button"
+          disabled={readOnly}
           onClick={() => onSelect(v.id)}
           className={`w-[76px] overflow-hidden rounded border-2 text-left transition ${
             v.id === selectedId ? 'border-accent' : 'border-transparent opacity-60 hover:opacity-100'
@@ -53,7 +57,7 @@ export function AssetRow({
   projectName?: string;
   onOpenProject?: () => void;
 }) {
-  const { addAssetVersion, selectAssetVersion } = useStore();
+  const { addAssetVersion, selectAssetVersion, workspaceReadOnly } = useStore();
   const upload = useRef<HTMLInputElement>(null);
   const busy = asset.generationState === 'queued' || asset.generationState === 'running';
   const selected = asset.versions.find((v) => v.id === asset.selectedVersionId);
@@ -91,17 +95,19 @@ export function AssetRow({
           <VersionStrip
             versions={asset.versions}
             selectedId={asset.selectedVersionId}
+            readOnly={workspaceReadOnly}
             onSelect={(id) => selectAssetVersion(kind, asset.id, id)}
           />
         </div>
 
         <div className="flex flex-wrap gap-2 pt-1">
-          <Button size="sm" variant="outline" disabled={busy} onClick={() => addAssetVersion(kind, asset.id, 'generated')}>
+          <ImageLearning projectId={asset.projectId} targetType={kind === 'character' ? 'CHARACTER' : 'SCENE'} targetId={asset.id} />
+          <Button size="sm" variant="outline" disabled={workspaceReadOnly || busy} onClick={() => addAssetVersion(kind, asset.id, 'generated')}>
             {busy ? '生成中…' : asset.generationState === 'unknown' ? '确认重试' : asset.generationState === 'failed' ? '重试' : '生成一版'}
           </Button>
           <input ref={upload} type="file" accept="image/jpeg,image/png" className="hidden" aria-label={`上传${asset.name}参考图`}
             onChange={e => { const file = e.target.files?.[0]; if (file) addAssetVersion(kind, asset.id, 'uploaded', file); e.target.value = ''; }} />
-          <Button size="sm" variant="ghost" onClick={() => upload.current?.click()}>
+          <Button size="sm" variant="ghost" disabled={workspaceReadOnly} onClick={() => upload.current?.click()}>
             上传参考图
           </Button>
           {onOpenProject && (

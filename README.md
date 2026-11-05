@@ -13,6 +13,11 @@
 - 第六阶段观测、测试与收尾：[docs/backend-phase6.md](docs/backend-phase6.md)
 - 第七阶段批次、RabbitMQ 与独立 Worker：[docs/backend-phase7.md](docs/backend-phase7.md)
 - 第八阶段 Redis 共享生成准入：[docs/backend-phase8.md](docs/backend-phase8.md)
+- 第九阶段自然语言工作台与 MCP：[docs/backend-phase9.md](docs/backend-phase9.md)
+- 第十阶段团队管理与项目协作：[docs/backend-phase10-team-management.md](docs/backend-phase10-team-management.md)
+- 第十一阶段分镜创作方案：[docs/creative-variants-plan.md](docs/creative-variants-plan.md)
+- 第十二阶段主 / 子 Agent、Skill 与上下文压缩：[docs/backend-phase12.md](docs/backend-phase12.md)
+- 第十三阶段图片纠正、用户偏好与创作配方：[docs/image-learning.md](docs/image-learning.md)
 
 ## 核心链路
 
@@ -55,7 +60,8 @@
 | 任务分发 | RabbitMQ 4.4.0（可选模式） | 文本 / 图片 / 视频通道、独立 Worker、手动 ACK 与死信 |
 | 生成准入 | Redis 8.10.3（可选，依赖 MQ 模式） | 多 Worker 共享提交速率、短许可、故障关闭 |
 | 文件 | 本地私有文件（已实现）；S3 兼容存储（计划） | 上传素材与生成媒体 |
-| Agent（后续） | 受控工具模块，尚未实现 | 工具调用与跨步骤编排；当前拆解是普通后端任务 |
+| Agent | 主 / 子 Agent + Markdown Skill + 受控业务工具 | 按需加载 Skill、多轮工具调用、草稿修复、持久化运行与上下文压缩 |
+| MCP | Java MCP SDK + 本地 STDIO Server | 通过现有 Spring API 操作项目、分集、镜头与 Mock 出图 |
 | 契约 | `packages/contracts` + springdoc OpenAPI | API、任务事件、工具入参出参 |
 
 目录是职责边界。阶段一至六默认使用数据库租约轮询；阶段七增加 Outbox + RabbitMQ 与同代码库独立 Worker，任务事实和租约继续留在 PostgreSQL。第八阶段已增加可选 Redis 共享生成提交准入，故障时暂停新提交；默认仍无需 Redis。
@@ -76,8 +82,10 @@
 VibeStory/
 ├── apps/
 │   ├── web/                  # React 创作工作台（已接后端，保留离线演示）
-│   ├── api/                  # 用户、项目、分集、镜头、资产与任务业务
-│   └── agent/                # 后续受控工具编排的职责边界，尚未实现
+│   ├── api/                  # 业务规则、任务 Worker 与持久化 Agent 运行时
+│   ├── agent/                # 受控创作工具共享契约
+│   └── mcp/                  # 本地 STDIO MCP Server
+├── skills/                  # 可编辑 Markdown Skill；个人覆盖不提交
 ├── packages/
 │   └── contracts/            # API、任务、事件与工具共享契约
 ├── design/
@@ -93,6 +101,10 @@ VibeStory/
 ```
 
 ## 当前状态
+
+**截至 2026-11-05，当前原型范围已实现并完成全 Mock 验收。** 在原有生成链路上增加自然语言工作台、团队协作、分镜方案、主 / 子 Agent、文件 Skill 库、三层上下文压缩，以及图片纠正、明确评价、作用域偏好和版本化创作配方。最新独立 PostgreSQL 16 验收通过 189 项后端、17 项组件和 17 项 Chrome 用例，包含类型检查、契约生成、前端构建与 HTTP 崩溃恢复；失败、跳过与浏览器重试均为零。详见[图片学习验收](docs/image-learning.md#2026-11-05-验收结果)。这些结果不扩大历史真实供应商验证范围，也不代表线上部署或真实创作质量验证。
+
+旧开发库曾执行现已缺失原文件的 V18 迁移；沿用该库前需恢复原文件，或使用独立新库。当前独立库验收通过，迁移限制见[阶段十二记录](docs/backend-phase12.md)。
 
 **前端核心 API 联调已完成**：真实会话登录、项目 / 分集 / 正文、拆解与镜头编辑、资产版本与上传、分镜图候选选择、视频生成与播放器均接后端。TanStack Query 缓存按用户分隔，活动集三秒轮询、失焦停止；保存失败保留草稿。后端不可用时明确显示离线演示，使用独立的浏览器数据。设置页只读显示后端实际模型，不保存供应商密钥。
 
@@ -136,3 +148,28 @@ VibeStory/
 MQ 本机启动：`scripts/dev-mq.sh api` 与两个终端分别运行 `scripts/dev-mq.sh worker`，共享 PostgreSQL / RabbitMQ 和同一绝对媒体根目录。免费 MQ 验收使用 `scripts/dev-test-rabbitmq.sh` + `scripts/verify-phase7-mock.sh`，具体隔离端口与可丢弃节点配置见阶段七文档；数据库模式全套回归仍用 `scripts/verify-all-mock.sh`。
 
 **阶段八已实现**：Redis 服务端时间 + Lua 令牌桶，多 Worker 共用生成提交额度；额度不足时数据库延迟派发、零新增 attempt，短许可在实际请求前校验。Redis 故障关闭、单一恢复代次从零补充，已有外部任务号继续查询恢复。运行 `scripts/dev-redis.sh api|worker`，真实 Redis 专项与本机故障证据见 [阶段八记录](docs/backend-phase8.md)。
+
+## Codex MCP
+
+VibeStory 提供本地 STDIO MCP Server。Java MCP SDK 处理协议，工具通过现有 Spring API 登录并执行分镜操作。任务 ID、改镜提案和出图批次都由原后端保存。MCP 提交拆镜时保护已有镜头，改镜预览与保存分开。改镜提案当前用于个人项目。
+
+1. 在仓库根目录执行 `scripts/java21.sh :mcp:installDist`。
+2. 启动本机 Mock API。以下命令在读入现有数据库和登录配置后切换 Provider。
+
+   ```bash
+   set -a
+   source .env
+   set +a
+   TEXT_PROVIDER=mock IMAGE_PROVIDER=mock VIDEO_PROVIDER=mock MOCK_ONLY=true \
+     TEXT_API_KEY='' IMAGE_API_KEY='' VIDEO_API_KEY='' \
+     DISPATCH_MODE=database APP_ROLE=all ADMISSION_ENABLED=false WORKER_ENABLED=true \
+     scripts/java21.sh :api:bootRun
+   ```
+
+3. 用 Codex 打开并信任本仓库，重新开启会话。项目的 `.codex/config.toml` 会注册 `vibestory`，可用 `/mcp` 查看。项目配置将写工具设为审批模式。MCP 默认使用本机 `.env` 的种子账号和 `PORT`。可在同一文件用 `VIBESTORY_MCP_EMAIL`、`VIBESTORY_MCP_PASSWORD`、`VIBESTORY_MCP_URL` 覆盖。
+
+可以对 Codex 说「用 VibeStory 把《雨巷》第 2 集已保存的正文拆成镜头，完成后列出来」。`list_projects` 用来定位分集，`submit_breakdown` 和 `get_task` 跟踪拆镜，`list_shots` 读取结果。改镜使用 `preview_shot_edit` 和 `apply_shot_edit`，也可用 `discard_shot_edit` 放弃。整集确认后可用 `submit_image_batch` 和 `get_image_batch` 提交和查询指定镜头的出图批次。
+
+所有提交生成的 MCP 工具要求对应 Provider 为 Mock。应用改镜提案也要求图片 Provider 为 Mock，因为站内创建的部分提案会同时出图。预览和出图批次使用调用方提供的 UUID，同一次请求重试时复用。
+
+协议验收可用 `scripts/java21.sh :api:bootJar :mcp:installDist` 构建，再向 `python3 scripts/verify-mcp.py` 提供本机临时 PostgreSQL 库的 `DATABASE_URL`、`DATABASE_USER`、`DATABASE_PASSWORD`。验收库名以 `vibestory_mcp_` 开头。脚本使用独立账号和存储目录，强制全 Mock。

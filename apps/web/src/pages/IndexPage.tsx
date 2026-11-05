@@ -20,7 +20,7 @@ import {
   type VisualCategory,
 } from '@/lib/visualPresets';
 
-function ProjectCard({
+export function ProjectCard({
   project,
   shots,
   customStyles,
@@ -32,8 +32,8 @@ function ProjectCard({
   shots: number;
   customStyles: VisualPreset[];
   onOpen: () => void;
-  onRename: () => void;
-  onDelete: () => void;
+  onRename?: () => void;
+  onDelete?: () => void;
 }) {
   return (
     <article className="group relative overflow-hidden rounded-card border border-stroke/20 bg-panel transition hover:border-stroke/40">
@@ -63,20 +63,20 @@ function ProjectCard({
       </button>
 
       <div className="absolute right-3 top-3 flex gap-1 opacity-0 transition group-hover:opacity-100">
-        <button
+        {onRename && <button
           type="button"
           onClick={onRename}
           className="rounded bg-black/55 px-2 py-1 text-[11px] text-white/85 backdrop-blur hover:bg-black/75"
         >
           重命名
-        </button>
-        <button
+        </button>}
+        {onDelete && <button
           type="button"
           onClick={onDelete}
           className="rounded bg-black/55 px-2 py-1 text-[11px] text-error-soft backdrop-blur hover:bg-black/75"
         >
           删除
-        </button>
+        </button>}
       </div>
     </article>
   );

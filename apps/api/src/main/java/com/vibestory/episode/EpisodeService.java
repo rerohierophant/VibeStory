@@ -45,10 +45,12 @@ public class EpisodeService {
     }
 
     @Transactional
-    public Episode.View update(long userId, long episodeId, String title, String summary) {
+    public Episode.View update(long userId, long episodeId, String title, String summary, Long expectedVersion) {
         long projectId = scope.lockEpisode(userId, episodeId);
         if (summary != null) TextInput.validate(summary, 16_000, "梗概");
         var episode = find(userId, episodeId);
+        if (expectedVersion != null && expectedVersion != episode.version())
+            throw ApiException.conflict("分集已被修改，请刷新后再编辑");
         episode.update(title == null ? null : TextInput.name(title, "集名"), summary);
         episodes.flush();
         scope.touchProject(projectId, userId);
@@ -57,9 +59,16 @@ public class EpisodeService {
 
     @Transactional
     public Episode.View story(long userId, long episodeId, String story) {
+        return story(userId, episodeId, story, null);
+    }
+
+    @Transactional
+    public Episode.View story(long userId, long episodeId, String story, Long expectedStoryRevision) {
         long projectId = scope.lockEpisode(userId, episodeId);
         TextInput.validate(story, 1024 * 1024, "正文");
         var episode = find(userId, episodeId);
+        if (expectedStoryRevision != null && expectedStoryRevision != episode.storyRevision())
+            throw ApiException.conflict("正文已被修改，请刷新后再编辑");
         episode.setStory(story);
         episodes.flush();
         scope.touchProject(projectId, userId);

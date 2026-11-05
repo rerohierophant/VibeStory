@@ -13,7 +13,7 @@ import type { Episode, Shot } from '@/lib/types';
 type Filter = 'all' | 'ready' | 'pending' | 'failed';
 
 function VideoCard({ shot, onPreview }: { shot: Shot; onPreview: () => void }) {
-  const { generateVideo } = useStore();
+  const { generateVideo, workspaceReadOnly } = useStore();
   const navigate = useNavigate();
   const image = shot.images.find((i) => i.id === (shot.video.ready ? shot.video.basedOn : shot.video.pendingBasedOn ?? shot.selectedImageId));
   const busy = shot.video.state === 'queued' || shot.video.state === 'running';
@@ -112,7 +112,7 @@ function VideoCard({ shot, onPreview }: { shot: Shot; onPreview: () => void }) {
             className="flex-1"
             variant={canSubmit ? 'primary' : 'outline'}
             onClick={() => generateVideo(shot.id)}
-            disabled={!canSubmit || busy}
+            disabled={workspaceReadOnly || !canSubmit || busy}
             title={blockedReason}
           >
             {blockedReason && !busy ? blockedReason : submitLabel}

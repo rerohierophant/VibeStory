@@ -1,7 +1,8 @@
 import { createContext } from 'react';
 import type { State, Project, Episode, Shot, VisualType, ProviderSettings } from './types';
 import type { components } from '../../../../packages/contracts/src/api';
-export type RuntimeConfig = components['schemas']['RuntimeConfig'];
+type Schema = components['schemas'];
+export type RuntimeConfig = Schema['RuntimeConfig'];
 export interface NewProjectInput {
   name: string;
   visualType: VisualType;
@@ -10,10 +11,14 @@ export interface NewProjectInput {
 
 export interface StoreValue extends State {
   mode: 'api' | 'demo';
+  workspaceLoading?: boolean;
+  workspaceTeam?: Schema['TeamView'];
+  workspaceReadOnly?: boolean;
   saving?: boolean;
   error?: string;
   dismissError?: () => void;
   retrySave?: () => void;
+  discardConflictedEdit?: () => void;
   runtime?: RuntimeConfig;
   retryTask?: (taskId: string, acknowledgeUnknown?: boolean) => void;
   login: (email: string, password?: string) => void | Promise<void>;
@@ -27,8 +32,12 @@ export interface StoreValue extends State {
   updateEpisode: (episodeId: string, patch: Partial<Pick<Episode, 'title' | 'summary'>>) => void;
   setEpisodeStory: (episodeId: string, text: string) => void;
   runBreakdown: (episodeId: string) => void;
+  performCreative?: <T>(key: string, action: () => Promise<T>) => Promise<T>;
 
   updateShot: (id: string, patch: Partial<Shot>) => void;
+  sendAgentMessage?: (conversationId: string, requestKey: string, input: FormData) => Promise<Schema['Transcript']>;
+  confirmAgentWorkflow?: (conversationId: string, workflowId: string) => Promise<Schema['Transcript']>;
+  decideShotEdit?: (episodeId: string, id: string, decision: 'apply' | 'discard') => Promise<Schema['Proposal']>;
   confirmShot: (id: string) => void;
   unconfirmShot: (id: string) => void;
   confirmAll: (episodeId: string) => void;

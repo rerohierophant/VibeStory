@@ -3,9 +3,11 @@ import type { VisualPreset } from './visualPresets';
 /** 画面风格预设的 id，见 lib/visualPresets.ts；保存的是稳定 id 而不是展示名。 */
 export type VisualType = string;
 
-export type ShotSize = '远景' | '全景' | '中景' | '近景' | '特写';
+export const shotSizes = ['远景', '全景', '中景', '近景', '特写'] as const;
+export type ShotSize = (typeof shotSizes)[number];
 
-export type CameraMove = '固定' | '推' | '拉' | '摇' | '移' | '跟';
+export const cameraMoves = ['固定', '推', '拉', '摇', '移', '跟'] as const;
+export type CameraMove = (typeof cameraMoves)[number];
 
 export type ShotStatus = 'draft' | 'confirmed';
 
@@ -23,6 +25,8 @@ export interface Episode {
   breakdown: BreakdownState;
   createdAt: number;
   updatedAt: number;
+  version?: number;
+  storyRevision?: number;
   breakdownTask?: { id: string; state: TaskState; error?: string; retryable: boolean; resumable?: boolean };
 }
 
@@ -35,6 +39,8 @@ export interface Project {
   updatedAt: number;
   episodes: Episode[];
   visualPreset?: VisualPreset;
+  teamId?: string;
+  version?: number;
 }
 
 /** 分镜图生成时使用的人物 / 场景版本；未关联版本时保留名称。 */
@@ -84,6 +90,7 @@ export interface ShotVideo {
 
 export interface Shot {
   id: string;
+  version?: number;
   projectId: string;
   episodeId: string;
   seq: number;

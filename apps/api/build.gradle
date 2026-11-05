@@ -10,6 +10,7 @@ java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
 repositories { mavenCentral() }
 
 dependencies {
+    implementation project(':agent')
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-amqp'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
@@ -49,6 +50,11 @@ tasks.register('rabbitTest', Test) {
 
 tasks.withType(Test).configureEach {
     systemProperty 'vibestory.contracts-dir', rootProject.file('packages/contracts').absolutePath
+    systemProperty 'vibestory.skills.root', rootProject.file('skills').absolutePath
+}
+
+tasks.named('bootRun') {
+    systemProperty 'vibestory.skills.root', System.getenv('SKILLS_ROOT') ?: rootProject.file('skills').absolutePath
 }
 
 tasks.register('redisTest', Test) {

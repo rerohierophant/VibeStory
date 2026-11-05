@@ -14,6 +14,17 @@ public class ScopeGuard {
         require(db.fetchOne("select id from project where id = ? and user_id = ?", projectId, userId));
     }
 
+    public void personalProject(long userId, long projectId) {
+        require(db.fetchOne("select id from project where id=? and user_id=? and team_id is null", projectId, userId));
+    }
+
+    public void personalEpisode(long userId, long episodeId) {
+        require(db.fetchOne("""
+            select e.id from episode e join project p on p.id=e.project_id and p.user_id=e.user_id
+            where e.id=? and p.user_id=? and p.team_id is null
+            """, episodeId, userId));
+    }
+
     // Also serializes allocation of episode_index inside the caller's transaction.
     public void lockProject(long userId, long projectId) {
         require(db.fetchOne("select id from project where id = ? and user_id = ? for update", projectId, userId));

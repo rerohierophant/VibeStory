@@ -1,0 +1,15 @@
+plugins { id 'application' }
+
+java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+repositories { mavenCentral() }
+
+dependencies {
+    implementation 'io.modelcontextprotocol.sdk:mcp-core:2.1.0'
+    implementation 'io.modelcontextprotocol.sdk:mcp-json-jackson2:2.1.0'
+    runtimeOnly 'org.slf4j:slf4j-nop:2.0.16'
+}
+
+application {
+    applicationName = 'vibestory-mcp'
+    mainClass = 'com.vibestory.mcp.Main'
+}

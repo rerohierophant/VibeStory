@@ -41,7 +41,7 @@ def main():
     env = {**os.environ, "ADMISSION_ENABLED": "false", "DISPATCH_MODE": "database", "APP_ROLE": "all", 'TEXT_PROVIDER': 'mock', 'IMAGE_PROVIDER': 'mock', 'VIDEO_PROVIDER': 'mock', 'MOCK_ONLY': 'true',
            'TEXT_API_KEY': '', 'IMAGE_API_KEY': '', 'VIDEO_API_KEY': '',
            'WORKER_ENABLED': 'true', 'SEED_EMAIL': email, 'SEED_PASSWORD': password,
-           'STORAGE_ROOT': str(ROOT / 'data/storage'), 'API_PROXY_TARGET': f'http://127.0.0.1:{api_port}',
+           'STORAGE_ROOT': str(runtime / 'storage'), 'API_PROXY_TARGET': f'http://127.0.0.1:{api_port}',
            'WEB_TEST_URL': f'http://127.0.0.1:{web_port}', 'WEB_TEST_EMAIL': email,
            'WEB_TEST_OTHER_EMAIL': other, 'WEB_TEST_PASSWORD': password, 'WEB_TEST_ARTIFACTS': str(runtime / 'browser')}
     processes = []

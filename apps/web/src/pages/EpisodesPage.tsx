@@ -61,7 +61,7 @@ export function EpisodesPage() {
   const { id = '' } = useParams();
   const project = useProject(id);
   const shots = useProjectShots(id);
-  const { createEpisode, updateEpisode } = useStore();
+  const { createEpisode, updateEpisode, workspaceReadOnly } = useStore();
   const navigate = useNavigate();
   const [editing, setEditing] = useState<{ id: string; title: string } | null>(null);
 
@@ -95,7 +95,7 @@ export function EpisodesPage() {
             {episodes.length} 集 · {shots.length} 个镜头。每集各自拆解、各自出图。
           </p>
         </div>
-        <Button onClick={addEpisode}>新建一集</Button>
+        <Button disabled={workspaceReadOnly} onClick={addEpisode}>新建一集</Button>
       </header>
 
       <div className="flex-1 overflow-y-auto scroll-thin p-8">
@@ -103,7 +103,7 @@ export function EpisodesPage() {
           <EmptyState
             title="还没有分集"
             description="短剧通常按集推进。先建第一集，粘贴这一集的剧本。"
-            action={<Button onClick={addEpisode}>新建一集</Button>}
+            action={<Button disabled={workspaceReadOnly} onClick={addEpisode}>新建一集</Button>}
           />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
@@ -131,6 +131,7 @@ export function EpisodesPage() {
                     <EpisodePreview previews={previews} />
                     <button
                       type="button"
+                      disabled={workspaceReadOnly}
                       onClick={() => setEditing({ id: ep.id, title: ep.title })}
                       title="修改集名"
                       aria-label={`修改第 ${ep.index} 集集名`}

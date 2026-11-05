@@ -31,6 +31,7 @@ public class TaskMetrics {
         var groups = db.fetch("""
             with scoped as (
                 select * from task where user_id=? and created_at>=?::timestamptz and created_at<=?::timestamptz
+                    and exists (select 1 from project p where p.id=task.project_id and p.team_id is null)
             ), timings as (
                 select t.id,
                     max(extract(epoch from (a.started_at-t.created_at))*1000) filter (where a.attempt_no=1) as queue_ms,

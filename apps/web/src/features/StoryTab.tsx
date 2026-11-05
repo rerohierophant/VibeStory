@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react';
 import { Badge } from '@/components/Badge';
 import { Button } from '@/components/Button';
+import { EpisodeCreativePanel } from './CreativePanels';
 import { Modal } from '@/components/Modal';
 import { useEpisodeShots, useProject, useStore } from '@/lib/store';
 
 export function StoryTab({ episodeId }: { episodeId: string }) {
-  const { projects, setEpisodeStory, runBreakdown, updateEpisode, retryTask } = useStore();
+  const { projects, setEpisodeStory, runBreakdown, updateEpisode, retryTask, workspaceReadOnly, mode } = useStore();
   const shots = useEpisodeShots(episodeId);
   const episode = projects.flatMap((p) => p.episodes).find((e) => e.id === episodeId);
   const project = useProject(projects.find((p) => p.episodes.some((e) => e.id === episodeId))?.id ?? '');
@@ -45,7 +46,7 @@ export function StoryTab({ episodeId }: { episodeId: string }) {
               className="hidden"
               onChange={(e) => onFile(e.target.files?.[0])}
             />
-            <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+            <Button variant="outline" size="sm" disabled={workspaceReadOnly} onClick={() => fileRef.current?.click()}>
               上传文件
             </Button>
             <Button
@@ -54,7 +55,7 @@ export function StoryTab({ episodeId }: { episodeId: string }) {
                 if (shots.length > 0) setConfirmingBreakdown(true);
                 else runBreakdown(episodeId);
               }}
-              disabled={state === 'running' || text.trim().length < 20}
+              disabled={workspaceReadOnly || state === 'running' || text.trim().length < 20}
             >
               {state === 'running' ? '拆解中…' : shots.length > 0 ? '重新拆解' : 'AI 拆解镜头'}
             </Button>
@@ -65,6 +66,7 @@ export function StoryTab({ episodeId }: { episodeId: string }) {
           <textarea
             className="min-h-[420px] flex-1 resize-none bg-transparent p-6 text-[15px] leading-8 outline-none scroll-thin xl:min-h-0"
             placeholder={'把这一集的剧本贴在这里，或上传 .txt / .md 文件。\n\n示例：\n暴雨把整条街浇成一条发亮的河……'}
+            readOnly={workspaceReadOnly}
             value={text}
             onChange={(e) => setEpisodeStory(episodeId, e.target.value)}
           />
@@ -85,6 +87,7 @@ export function StoryTab({ episodeId }: { episodeId: string }) {
       </section>
 
       <aside className="flex shrink-0 flex-col gap-4 scroll-thin xl:min-h-0 xl:overflow-y-auto">
+        {mode === 'api' && project && !project.teamId && <EpisodeCreativePanel key={episodeId} episodeId={episodeId} hasShots={shots.length > 0} />}
         <div className="rounded-panel border border-stroke/20 bg-panel/60 p-5">
           <p className="text-xs text-muted">这一集</p>
           <label className="mt-3 block text-[11px] text-muted">
@@ -92,6 +95,7 @@ export function StoryTab({ episodeId }: { episodeId: string }) {
             <input
               className="field mt-1.5 h-9 text-sm"
               value={episode.title}
+              readOnly={workspaceReadOnly}
               onChange={(e) => updateEpisode(episodeId, { title: e.target.value })}
             />
           </label>
@@ -101,6 +105,7 @@ export function StoryTab({ episodeId }: { episodeId: string }) {
               className="field mt-1.5 min-h-16 resize-y text-sm"
               placeholder="这一集发生了什么，一句话说清"
               value={episode.summary}
+              readOnly={workspaceReadOnly}
               onChange={(e) => updateEpisode(episodeId, { summary: e.target.value })}
             />
           </label>
@@ -123,7 +128,7 @@ export function StoryTab({ episodeId }: { episodeId: string }) {
           </p>
           {episode.breakdownTask?.error && <div className="mt-3 space-y-2 text-xs text-error-soft">
             <p>{episode.breakdownTask.error}</p>
-            {(episode.breakdownTask.retryable || episode.breakdownTask.state === 'unknown') && <Button size="sm" variant="outline" onClick={() => {
+            {!workspaceReadOnly && (episode.breakdownTask.retryable || episode.breakdownTask.state === 'unknown') && <Button size="sm" variant="outline" onClick={() => {
               const task = episode.breakdownTask!;
               if (task.state === 'unknown' && !window.confirm('外部结果未知，重试可能重复计费。确认重试？')) return;
               retryTask?.(task.id, task.state === 'unknown');
@@ -181,7 +186,7 @@ export function StoryTab({ episodeId }: { episodeId: string }) {
             </Button>
             <Button
               variant="danger"
-              disabled={state === 'running' || text.trim().length < 20}
+              disabled={workspaceReadOnly || state === 'running' || text.trim().length < 20}
               onClick={() => {
                 setConfirmingBreakdown(false);
                 setReplaceNotice(false);

@@ -11,6 +11,8 @@ import { formatDuration } from '@/lib/id';
 import { useEpisodeShots, useProject, useStore } from '@/lib/store';
 import type { Episode, Shot } from '@/lib/types';
 import { ShotEditor } from './ShotEditor';
+import { StoryboardVariants } from './StoryboardVariants';
+import { ImageLearning } from './ImageLearning';
 
 type Filter = 'all' | 'todo' | 'draft';
 
@@ -109,7 +111,7 @@ function ShotRow({
   onOpenEditor: () => void;
   onOpenPreview: () => void;
 }) {
-  const { generateImage, selectImage, confirmShot } = useStore();
+  const { generateImage, selectImage, confirmShot, workspaceReadOnly } = useStore();
   const selected = shot.images.find((i) => i.id === shot.selectedImageId);
   const busy = shot.imageState === 'queued' || shot.imageState === 'running';
 
@@ -165,6 +167,7 @@ function ShotRow({
               <button
                 key={img.id}
                 type="button"
+                disabled={workspaceReadOnly}
                 onClick={() => selectImage(shot.id, img.id)}
                 aria-label={`第 ${code} 镜选定 ${img.label}`}
                 aria-pressed={shot.selectedImageId === img.id}
@@ -249,7 +252,7 @@ function ShotRow({
         <div className="mt-4 flex flex-col items-stretch gap-2">
           {shot.imageError && <p className="text-[11px] leading-5 text-error-soft">{shot.imageError}</p>}
           {shot.status === 'draft' ? (
-            <Button size="sm" variant="outline" onClick={() => confirmShot(shot.id)}>
+            <Button size="sm" variant="outline" disabled={workspaceReadOnly} onClick={() => confirmShot(shot.id)}>
               确认
             </Button>
           ) : null}
@@ -257,13 +260,14 @@ function ShotRow({
             size="sm"
             variant={shot.images.length === 0 ? 'primary' : 'outline'}
             onClick={() => generateImage(shot.id)}
-            disabled={busy || shot.status !== 'confirmed'}
+            disabled={workspaceReadOnly || busy || shot.status !== 'confirmed'}
           >
             {shot.imageState === 'unknown' ? '确认后重试' : shot.imageState === 'failed' ? '重试' : shot.images.length === 0 ? '生成分镜图' : '再生成一版'}
           </Button>
           <Button size="sm" variant="ghost" onClick={onOpenEditor}>
             编辑镜头
           </Button>
+          <ImageLearning projectId={shot.projectId} targetType="SHOT" targetId={shot.id} />
         </div>
       </td>
     </tr>
@@ -273,7 +277,7 @@ function ShotRow({
 export function StoryboardTab({ episodeId, projectId }: { episodeId: string; projectId: string }) {
   const shots = useEpisodeShots(episodeId);
   const project = useProject(projectId);
-  const { confirmAll } = useStore();
+  const { confirmAll, mode, workspaceReadOnly } = useStore();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<Filter>('all');
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -340,7 +344,7 @@ export function StoryboardTab({ episodeId, projectId }: { episodeId: string; pro
             {filtered.length} 镜 · {noImage} 待出图
             {draftCount > 0 && <span className="text-warning"> · {draftCount} 待确认</span>}
           </span>
-          <Button size="sm" variant="outline" onClick={() => confirmAll(episodeId)} disabled={draftCount === 0}>
+          <Button size="sm" variant="outline" onClick={() => confirmAll(episodeId)} disabled={workspaceReadOnly || draftCount === 0}>
             全部确认
           </Button>
           <Button
@@ -354,6 +358,7 @@ export function StoryboardTab({ episodeId, projectId }: { episodeId: string; pro
       </div>
 
       <BatchGeneration episodeId={episodeId} type="IMAGE" />
+      {mode === 'api' && <StoryboardVariants key={episodeId} episodeId={episodeId} shots={shots} />}
 
       <div className="min-h-0 flex-1 overflow-auto scroll-thin px-6 pb-6">
         {filtered.length === 0 ? (

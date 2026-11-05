@@ -3,6 +3,7 @@ import { Badge } from '@/components/Badge';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { PlaceholderImage } from '@/components/PlaceholderImage';
+import { ProjectScriptImport } from '@/features/CreativePanels';
 import { timeAgo } from '@/lib/id';
 import { useProject, useProjectShots, useStore } from '@/lib/store';
 import { visualLabel } from '@/lib/visualPresets';
@@ -11,7 +12,7 @@ export function ProjectOverviewPage() {
   const { id = '' } = useParams();
   const project = useProject(id);
   const shots = useProjectShots(id);
-  const { characters, scenes, createEpisode, customStyles } = useStore();
+  const { characters, scenes, createEpisode, customStyles, workspaceReadOnly, mode } = useStore();
   const navigate = useNavigate();
 
   if (!project) {
@@ -65,7 +66,7 @@ export function ProjectOverviewPage() {
               </p>
             </div>
           </div>
-          <Button onClick={addEpisode}>新建一集</Button>
+          <Button disabled={workspaceReadOnly} onClick={addEpisode}>新建一集</Button>
         </div>
 
         <div className="mt-6 grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4">
@@ -95,12 +96,14 @@ export function ProjectOverviewPage() {
             </Link>
           </div>
 
+          {mode === 'api' && !project.teamId && <ProjectScriptImport key={id} projectId={id} />}
+
           {episodes.length === 0 ? (
             <div className="mt-5">
               <EmptyState
                 title="还没有分集"
                 description="新建第一集，把这段故事贴进去，再让 AI 拆成镜头。"
-                action={<Button onClick={addEpisode}>新建一集</Button>}
+                action={<Button disabled={workspaceReadOnly} onClick={addEpisode}>新建一集</Button>}
               />
             </div>
           ) : (

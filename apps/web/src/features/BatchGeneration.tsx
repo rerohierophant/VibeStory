@@ -15,7 +15,7 @@ export function BatchGeneration(props: Props) {
 }
 
 function ApiBatchGeneration({ episodeId, type }: Props) {
-  const { user, submitBatch } = useStore();
+  const { user, submitBatch, workspaceReadOnly } = useStore();
   const shots = useEpisodeShots(episodeId);
   const cache = useQueryClient();
   const key = ['batches', user?.id, episodeId, type];
@@ -44,7 +44,7 @@ function ApiBatchGeneration({ episodeId, type }: Props) {
     setError(''); setOpen(true);
   }
   async function submit() {
-    if (busy || !submitBatch) return;
+    if (workspaceReadOnly || busy || !submitBatch) return;
     setBusy(true); setError('');
     const fingerprint = JSON.stringify([selected.slice().sort(), regenerate]);
     if (request.current?.fingerprint !== fingerprint) request.current = { fingerprint, key: crypto.randomUUID() };
@@ -61,7 +61,7 @@ function ApiBatchGeneration({ episodeId, type }: Props) {
   }
   return <div className="border-b border-stroke/15 px-6 py-3 text-xs">
     <div className="flex flex-wrap items-center gap-3">
-      <Button size="sm" variant="outline" onClick={show}>本集批量生成{label}</Button>
+      <Button size="sm" variant="outline" disabled={workspaceReadOnly} onClick={show}>本集批量生成{label}</Button>
       {latest?.progress && <button type="button" className="text-muted underline" onClick={() => { setResult(latest); setOpen(true); }}>
         最近批次 #{latest.id} · 已生成 {latest.progress.succeeded ?? 0}/{latest.progress.total} · 阻塞 {latest.progress.blocked ?? 0}{latest.progress.paused ? ` · 派发暂停 ${latest.progress.paused}` : ''}
       </button>}
@@ -85,7 +85,7 @@ function ApiBatchGeneration({ episodeId, type }: Props) {
             <span className="font-mono">{String(shot.seq).padStart(2, '0')}</span><span className="min-w-0 flex-1 truncate">{shot.description}</span><span className="text-muted">{problem(shot.id)}</span>
           </label>)}
         </div>
-        <Button size="sm" disabled={busy || selected.length === 0} onClick={() => void submit()}>{busy ? '正在提交…' : `提交 ${selected.length} 镜`}</Button>
+        <Button size="sm" disabled={workspaceReadOnly || busy || selected.length === 0} onClick={() => void submit()}>{busy ? '正在提交…' : `提交 ${selected.length} 镜`}</Button>
         {error && <p role="alert" className="text-xs text-error-soft">{error}</p>}
         {shown && <div aria-live="polite" className="space-y-2 text-xs">
           <h3 className="font-medium">批次 #{shown.id} · {shown.state === 'complete' ? '已结束' : shown.state === 'paused' ? '派发暂停' : '执行中'}</h3>
@@ -95,7 +95,7 @@ function ApiBatchGeneration({ episodeId, type }: Props) {
             {member.waitReason && <span className="text-muted">{member.waitReason === 'RATE_LIMITED' ? '等待生成名额' : '生成服务暂缓接收，等待恢复'} · 将自动继续</span>}
             {member.reason && <span className="text-error-soft">{member.reason}</span>}
             {member.taskId && <span className="text-muted">任务 #{member.taskId}</span>}
-            {member.dispatchBlocked && <><span className="text-error-soft">派发已暂停 · {member.dispatchBlocked}</span><button className="underline" onClick={() => void resume(member.taskId!)}>修复后恢复派发</button></>}
+            {member.dispatchBlocked && <><span className="text-error-soft">派发已暂停 · {member.dispatchBlocked}</span><button className="underline" disabled={workspaceReadOnly} onClick={() => void resume(member.taskId!)}>修复后恢复派发</button></>}
           </li>)}</ul>
         </div>}
       </div>

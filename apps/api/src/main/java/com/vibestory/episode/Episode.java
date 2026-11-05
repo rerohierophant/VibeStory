@@ -35,6 +35,8 @@ public class Episode {
 
     public long projectId() { return projectId; }
     public long id() { return id; }
+    public long version() { return version; }
+    public long storyRevision() { return storyRevision; }
     public void update(String title, String summary) {
         if (title != null) this.title = title;
         if (summary != null) this.summary = summary;
@@ -51,12 +53,12 @@ public class Episode {
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "Episode")
     public record View(String id, int index, String title, String summary, String story, String breakdown,
-                       long createdAt, long updatedAt, ProductionStatistics.Counts stats) {}
+                       long createdAt, long updatedAt, ProductionStatistics.Counts stats, long version, long storyRevision) {}
     public View view(ProductionStatistics.Counts stats) {
         return view(stats, breakdownState);
     }
     public View view(ProductionStatistics.Counts stats, String state) {
         return new View(id.toString(), episodeIndex, title, summary, storyContent,
-            state.toLowerCase(Locale.ROOT), createdAt.toEpochMilli(), updatedAt.toEpochMilli(), stats);
+            state.toLowerCase(Locale.ROOT), createdAt.toEpochMilli(), updatedAt.toEpochMilli(), stats, version, storyRevision);
     }
 }

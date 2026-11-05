@@ -1,6 +1,103 @@
 {
   "components": {
     "schemas": {
+      "AgentContextPage": {
+        "properties": {
+          "characters": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "nextOffset": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "offset": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AgentInstruction": {
+        "properties": {
+          "episodeId": {
+            "exclusiveMinimum": 0,
+            "format": "int64",
+            "type": "integer"
+          },
+          "instruction": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "projectId": {
+            "exclusiveMinimum": 0,
+            "format": "int64",
+            "type": "integer"
+          },
+          "requestKey": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "instruction",
+          "requestKey"
+        ],
+        "type": "object"
+      },
+      "AgentResult": {
+        "properties": {
+          "batchId": {
+            "type": "string"
+          },
+          "details": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "episodeId": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "proposal": {
+            "$ref": "#/components/schemas/Proposal"
+          },
+          "skill": {
+            "enum": [
+              "WORKSPACE",
+              "STORY",
+              "SHOT",
+              "ASSET",
+              "GENERATE",
+              "PROGRESS"
+            ],
+            "type": "string"
+          },
+          "taskId": {
+            "type": "string"
+          },
+          "variantChoice": {
+            "$ref": "#/components/schemas/VariantChoice"
+          }
+        },
+        "type": "object"
+      },
       "AssetCard": {
         "properties": {
           "description": {
@@ -39,6 +136,23 @@
         },
         "type": "object"
       },
+      "AssetSnapshot": {
+        "properties": {
+          "assetId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          },
+          "versionLabel": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "AssetVersion": {
         "properties": {
           "createdAt": {
@@ -67,6 +181,20 @@
         },
         "type": "object"
       },
+      "Attachment": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Attempt": {
         "properties": {
           "diagnosticUrl": {
@@ -86,6 +214,170 @@
             "type": "integer"
           },
           "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Capabilities": {
+        "properties": {
+          "editProjects": {
+            "type": "boolean"
+          },
+          "leave": {
+            "type": "boolean"
+          },
+          "manageAdmins": {
+            "type": "boolean"
+          },
+          "manageTeam": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "Change": {
+        "properties": {
+          "after": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ChatInput": {
+        "properties": {
+          "episodeId": {
+            "exclusiveMinimum": 0,
+            "format": "int64",
+            "type": "integer"
+          },
+          "images": {
+            "items": {
+              "format": "binary",
+              "type": "string"
+            },
+            "maxItems": 4,
+            "minItems": 0,
+            "type": "array"
+          },
+          "instruction": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "projectId": {
+            "exclusiveMinimum": 0,
+            "format": "int64",
+            "type": "integer"
+          },
+          "requestKey": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestKey"
+        ],
+        "type": "object"
+      },
+      "ChatMessage": {
+        "properties": {
+          "episodeId": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "execution": {
+            "$ref": "#/components/schemas/Execution"
+          },
+          "id": {
+            "type": "string"
+          },
+          "imageTaskId": {
+            "type": "string"
+          },
+          "images": {
+            "items": {
+              "$ref": "#/components/schemas/Attachment"
+            },
+            "type": "array"
+          },
+          "instruction": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "proposalState": {
+            "enum": [
+              "PENDING",
+              "APPLIED",
+              "DISCARDED"
+            ],
+            "type": "string"
+          },
+          "result": {
+            "$ref": "#/components/schemas/AgentResult"
+          },
+          "suggestedInstruction": {
+            "type": "string"
+          },
+          "variantAdopted": {
+            "type": "boolean"
+          },
+          "workflow": {
+            "$ref": "#/components/schemas/Workflow"
+          }
+        },
+        "type": "object"
+      },
+      "ContextStatus": {
+        "properties": {
+          "afterBytes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "beforeBytes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "compactions": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "offloadedResults": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "prunedResults": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "summaryCalls": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Conversation": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
             "type": "string"
           }
         },
@@ -146,6 +438,162 @@
         ],
         "type": "object"
       },
+      "CreativeEpisode": {
+        "properties": {
+          "mainSessionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "script": {
+            "$ref": "#/components/schemas/CreativeTurn"
+          },
+          "scriptSessionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "storyboard": {
+            "$ref": "#/components/schemas/CreativeTurn"
+          },
+          "storyboardSessionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreativePlanPreview": {
+        "properties": {
+          "episodes": {
+            "items": {
+              "$ref": "#/components/schemas/EpisodePreview"
+            },
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreativeProject": {
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/CreativeTurn"
+          },
+          "source": {
+            "$ref": "#/components/schemas/CreativeSource"
+          }
+        },
+        "type": "object"
+      },
+      "CreativeRequest": {
+        "properties": {
+          "instruction": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "requestKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scriptId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestKey"
+        ],
+        "type": "object"
+      },
+      "CreativeSource": {
+        "properties": {
+          "characters": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreativeStoryboard": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "shots": {
+            "items": {
+              "$ref": "#/components/schemas/ShotDraft"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CreativeTurn": {
+        "properties": {
+          "appliedIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "current": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "previousId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "PLAN",
+              "MAIN",
+              "SCRIPT",
+              "STORYBOARD"
+            ],
+            "type": "string"
+          },
+          "scriptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sessionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "QUEUED",
+              "RUNNING",
+              "READY",
+              "APPLIED",
+              "FAILED",
+              "UNKNOWN"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Csrf": {
         "properties": {
           "headerName": {
@@ -159,6 +607,9 @@
       },
       "Diagnostics": {
         "properties": {
+          "errorCode": {
+            "type": "string"
+          },
           "model": {
             "type": "string"
           },
@@ -166,6 +617,34 @@
             "type": "string"
           },
           "rawResponse": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Entry": {
+        "properties": {
+          "examples": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "key": {
+            "enum": [
+              "WORKSPACE",
+              "STORY",
+              "SHOT",
+              "ASSET",
+              "GENERATE",
+              "PROGRESS"
+            ],
+            "type": "string"
+          },
+          "label": {
             "type": "string"
           }
         },
@@ -193,6 +672,10 @@
           "story": {
             "type": "string"
           },
+          "storyRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
           "summary": {
             "type": "string"
           },
@@ -202,6 +685,103 @@
           "updatedAt": {
             "format": "int64",
             "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "EpisodePlan": {
+        "properties": {
+          "breakdownTaskId": {
+            "type": "string"
+          },
+          "episodeId": {
+            "type": "string"
+          },
+          "next": {
+            "$ref": "#/components/schemas/Next"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "story": {
+            "$ref": "#/components/schemas/StoryContext"
+          },
+          "storyRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "storyboard": {
+            "$ref": "#/components/schemas/StoryboardContext"
+          },
+          "video": {
+            "$ref": "#/components/schemas/VideoContext"
+          }
+        },
+        "type": "object"
+      },
+      "EpisodePreview": {
+        "properties": {
+          "closing": {
+            "type": "string"
+          },
+          "end": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "opening": {
+            "type": "string"
+          },
+          "start": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Execution": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/ContextStatus"
+          },
+          "error": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "modelRounds": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "role": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "toolCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "trace": {
+            "items": {
+              "$ref": "#/components/schemas/ToolTrace"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -352,7 +932,395 @@
         },
         "type": "object"
       },
+      "ImageCreation": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "instruction": {
+            "type": "string"
+          },
+          "learning": {
+            "$ref": "#/components/schemas/Learning"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "resultUrl": {
+            "type": "string"
+          },
+          "sourceTaskId": {
+            "type": "string"
+          },
+          "sourceUrl": {
+            "type": "string"
+          },
+          "taskId": {
+            "type": "string"
+          },
+          "taskState": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ImageCreationRequest": {
+        "properties": {
+          "instruction": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "parameters": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "recipeVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sourceTaskId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "targetId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "targetType": {
+            "enum": [
+              "SHOT",
+              "CHARACTER",
+              "SCENE"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "instruction",
+          "requestKey",
+          "targetType"
+        ],
+        "type": "object"
+      },
+      "ImageDecisionInput": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "ACCEPTED",
+              "REJECTED"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "type": "object"
+      },
+      "ImageExample": {
+        "properties": {
+          "prompt": {
+            "type": "string"
+          },
+          "selected": {
+            "type": "boolean"
+          },
+          "taskId": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ImageExperienceContext": {
+        "properties": {
+          "creations": {
+            "items": {
+              "$ref": "#/components/schemas/ImageCreation"
+            },
+            "type": "array"
+          },
+          "examples": {
+            "items": {
+              "$ref": "#/components/schemas/ImageExample"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "preferences": {
+            "items": {
+              "$ref": "#/components/schemas/ImagePreference"
+            },
+            "type": "array"
+          },
+          "recipes": {
+            "items": {
+              "$ref": "#/components/schemas/ImageRecipe"
+            },
+            "type": "array"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "targetType": {
+            "enum": [
+              "SHOT",
+              "CHARACTER",
+              "SCENE"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ImagePreference": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "originId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "rule": {
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "TARGET",
+              "PROJECT",
+              "USER"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ImagePreferenceEdit": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "expectedVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "rule": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule"
+        ],
+        "type": "object"
+      },
+      "ImagePreferenceRemember": {
+        "properties": {
+          "rule": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "TARGET",
+              "PROJECT",
+              "USER"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule",
+          "scope"
+        ],
+        "type": "object"
+      },
+      "ImageRecipe": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "targetType": {
+            "enum": [
+              "SHOT",
+              "CHARACTER",
+              "SCENE"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/ImageRecipeVersion"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ImageRecipeSave": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "originId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "recipeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "targetType": {
+            "enum": [
+              "SHOT",
+              "CHARACTER",
+              "SCENE"
+            ],
+            "type": "string"
+          },
+          "template": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "requestKey",
+          "targetType",
+          "template"
+        ],
+        "type": "object"
+      },
+      "ImageRecipeVersion": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "originId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "slots": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "template": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "InvitationView": {
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/TeamRole"
+          },
+          "status": {
+            "type": "string"
+          },
+          "teamId": {
+            "type": "string"
+          },
+          "teamName": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "JsonNode": {},
+      "Learning": {
+        "properties": {
+          "basePrompt": {
+            "type": "string"
+          },
+          "feedbackId": {
+            "type": "string"
+          },
+          "preferences": {
+            "items": {
+              "$ref": "#/components/schemas/PreferenceUse"
+            },
+            "type": "array"
+          },
+          "recipe": {
+            "$ref": "#/components/schemas/RecipeUse"
+          },
+          "sourceTaskId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Login": {
         "properties": {
           "email": {
@@ -418,6 +1386,27 @@
         },
         "type": "object"
       },
+      "MemberView": {
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "joinedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "manageable": {
+            "type": "boolean"
+          },
+          "role": {
+            "$ref": "#/components/schemas/TeamRole"
+          },
+          "userId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Metrics": {
         "properties": {
           "deadLetters": {
@@ -462,6 +1451,40 @@
             "type": "string"
           },
           "provider": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Next": {
+        "properties": {
+          "action": {
+            "enum": [
+              "WRITE_STORY",
+              "BREAK_DOWN",
+              "WAIT_FOR_BREAKDOWN",
+              "CHECK_BREAKDOWN",
+              "CONFIRM_SHOTS",
+              "GENERATE_IMAGES",
+              "WAIT_FOR_IMAGES",
+              "CHECK_IMAGES",
+              "SELECT_FRAMES",
+              "GENERATE_VIDEOS",
+              "WAIT_FOR_VIDEOS",
+              "CHECK_VIDEOS",
+              "COMPLETE"
+            ],
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "STORY",
+              "STORYBOARD",
+              "VIDEO"
+            ],
             "type": "string"
           }
         },
@@ -513,6 +1536,11 @@
             "minimum": 1500,
             "type": "integer"
           },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
           "sceneName": {
             "maxLength": 120,
             "minLength": 0,
@@ -522,6 +1550,42 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "PreferenceUse": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "rule": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Preview": {
+        "properties": {
+          "instruction": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "requestKey": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "instruction",
+          "requestKey"
+        ],
         "type": "object"
       },
       "Progress": {
@@ -597,7 +1661,14 @@
           "style": {
             "type": "string"
           },
+          "teamId": {
+            "type": "string"
+          },
           "updatedAt": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
             "format": "int64",
             "type": "integer"
           },
@@ -605,6 +1676,74 @@
             "$ref": "#/components/schemas/VisualPreset"
           },
           "visualType": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Proposal": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/Change"
+            },
+            "type": "array"
+          },
+          "generateImage": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "imageTaskId": {
+            "type": "string"
+          },
+          "instruction": {
+            "type": "string"
+          },
+          "shotId": {
+            "type": "string"
+          },
+          "shotNumber": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "PENDING",
+              "APPLIED",
+              "DISCARDED"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RecipeUse": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parameters": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "rendered": {
+            "type": "string"
+          },
+          "template": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "versionId": {
             "type": "string"
           }
         },
@@ -628,6 +1767,36 @@
           },
           "video": {
             "$ref": "#/components/schemas/VideoModel"
+          }
+        },
+        "type": "object"
+      },
+      "SaveSkill": {
+        "properties": {
+          "document": {
+            "maxLength": 65536,
+            "minLength": 0,
+            "type": "string"
+          },
+          "expectedVersion": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "document",
+          "expectedVersion"
+        ],
+        "type": "object"
+      },
+      "ScriptDraft": {
+        "properties": {
+          "script": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -725,8 +1894,114 @@
             ],
             "type": "string"
           },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
           "video": {
             "$ref": "#/components/schemas/Video"
+          }
+        },
+        "type": "object"
+      },
+      "ShotDraft": {
+        "properties": {
+          "cameraMove": {
+            "type": "string"
+          },
+          "characterNames": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": {
+            "type": "string"
+          },
+          "dialogue": {
+            "type": "string"
+          },
+          "durationMs": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sceneName": {
+            "type": "string"
+          },
+          "shotSize": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SkillDocument": {
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "document": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "personal": {
+            "type": "boolean"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SkillEntry": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "personal": {
+            "type": "boolean"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Sources": {
+        "properties": {
+          "characters": {
+            "items": {
+              "$ref": "#/components/schemas/AssetSnapshot"
+            },
+            "type": "array"
+          },
+          "scene": {
+            "$ref": "#/components/schemas/AssetSnapshot"
           }
         },
         "type": "object"
@@ -745,6 +2020,11 @@
       },
       "Story": {
         "properties": {
+          "expectedStoryRevision": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
           "story": {
             "maxLength": 1048576,
             "minLength": 0,
@@ -754,6 +2034,221 @@
         "required": [
           "story"
         ],
+        "type": "object"
+      },
+      "StoryContext": {
+        "properties": {
+          "readyForBreakdown": {
+            "type": "boolean"
+          },
+          "taskState": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "StoryboardContext": {
+        "properties": {
+          "active": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "issues": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "missing": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "shots": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "unconfirmed": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "StoryboardVariant": {
+        "properties": {
+          "archived": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/StoryboardVariantMember"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "revisionId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "StoryboardVariantAdopt": {
+        "properties": {
+          "requestKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "shots": {
+            "items": {
+              "$ref": "#/components/schemas/StoryboardVariantTarget"
+            },
+            "maxItems": 12,
+            "minItems": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "requestKey",
+          "shots"
+        ],
+        "type": "object"
+      },
+      "StoryboardVariantEdit": {
+        "properties": {
+          "cameraMove": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "shotId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "shotSize": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cameraMove",
+          "description",
+          "shotSize"
+        ],
+        "type": "object"
+      },
+      "StoryboardVariantMember": {
+        "properties": {
+          "cameraMove": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "imageId": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "reused": {
+            "type": "boolean"
+          },
+          "seq": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "shotId": {
+            "type": "string"
+          },
+          "shotSize": {
+            "type": "string"
+          },
+          "sources": {
+            "$ref": "#/components/schemas/Sources"
+          },
+          "state": {
+            "type": "string"
+          },
+          "taskId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "StoryboardVariantOverview": {
+        "properties": {
+          "canEdit": {
+            "type": "boolean"
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/StoryboardVariant"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "StoryboardVariantSubmit": {
+        "properties": {
+          "baseRevisionId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "requestKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "shots": {
+            "items": {
+              "$ref": "#/components/schemas/StoryboardVariantEdit"
+            },
+            "maxItems": 12,
+            "minItems": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "requestKey",
+          "shots"
+        ],
+        "type": "object"
+      },
+      "StoryboardVariantTarget": {
+        "properties": {
+          "imageId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "selectedImageId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "shotId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "shotVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "StyleUpload": {
@@ -865,6 +2360,74 @@
         },
         "type": "object"
       },
+      "TeamInvite": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "maxLength": 254,
+            "minLength": 0,
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/TeamRole"
+          }
+        },
+        "required": [
+          "email",
+          "role"
+        ],
+        "type": "object"
+      },
+      "TeamName": {
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "TeamRole": {
+        "enum": [
+          "OWNER",
+          "ADMIN",
+          "MEMBER",
+          "VIEWER"
+        ],
+        "type": "string"
+      },
+      "TeamRoleChange": {
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/TeamRole"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "type": "object"
+      },
+      "TeamView": {
+        "properties": {
+          "capabilities": {
+            "$ref": "#/components/schemas/Capabilities"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/TeamRole"
+          }
+        },
+        "type": "object"
+      },
       "Timing": {
         "properties": {
           "averageMs": {
@@ -882,8 +2445,44 @@
         },
         "type": "object"
       },
+      "ToolTrace": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "tool": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Transcript": {
+        "properties": {
+          "conversation": {
+            "$ref": "#/components/schemas/Conversation"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "UpdateEpisode": {
         "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
           "summary": {
             "maxLength": 4000,
             "minLength": 0,
@@ -899,6 +2498,11 @@
       },
       "UpdateProject": {
         "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
           "name": {
             "maxLength": 120,
             "minLength": 0,
@@ -917,6 +2521,30 @@
         },
         "type": "object"
       },
+      "UploadSource": {
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          },
+          "requestKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 1048576,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "requestKey",
+          "text"
+        ],
+        "type": "object"
+      },
       "Usage": {
         "properties": {
           "episodes": {
@@ -928,6 +2556,36 @@
           },
           "shots": {
             "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "VariantChoice": {
+        "properties": {
+          "episodeId": {
+            "type": "string"
+          },
+          "imageId": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "requestKey": {
+            "type": "string"
+          },
+          "revisionId": {
+            "type": "string"
+          },
+          "selectedImageId": {
+            "type": "string"
+          },
+          "shotId": {
+            "type": "string"
+          },
+          "shotVersion": {
+            "format": "int64",
             "type": "integer"
           }
         },
@@ -976,6 +2634,27 @@
           },
           "url": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "VideoContext": {
+        "properties": {
+          "active": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "issues": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "missing": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "withoutFrame": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -1048,6 +2727,53 @@
           }
         },
         "type": "object"
+      },
+      "Workflow": {
+        "properties": {
+          "batches": {
+            "items": {
+              "$ref": "#/components/schemas/GenerationBatch"
+            },
+            "type": "array"
+          },
+          "episodeId": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "shotCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "WAITING_BREAKDOWN",
+              "WAITING_CONFIRMATION",
+              "GENERATING",
+              "PAUSED",
+              "COMPLETE",
+              "PARTIAL",
+              "BLOCKED"
+            ],
+            "type": "string"
+          },
+          "taskId": {
+            "type": "string"
+          },
+          "unconfirmed": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -1087,6 +2813,454 @@
         ],
         "tags": [
           "admission-controller"
+        ]
+      }
+    },
+    "/api/agent/commands": {
+      "post": {
+        "operationId": "run",
+        "parameters": [
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentInstruction"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "workbench-agent-controller"
+        ]
+      }
+    },
+    "/api/agent/conversations": {
+      "get": {
+        "operationId": "history_1",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Conversation"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "agent-conversation-controller"
+        ]
+      }
+    },
+    "/api/agent/conversations/images/{id}": {
+      "get": {
+        "operationId": "image_3",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "agent-conversation-controller"
+        ]
+      }
+    },
+    "/api/agent/conversations/{id}": {
+      "get": {
+        "operationId": "transcript",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transcript"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "agent-conversation-controller"
+        ]
+      }
+    },
+    "/api/agent/conversations/{id}/messages": {
+      "post": {
+        "operationId": "send",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transcript"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "agent-conversation-controller"
+        ]
+      }
+    },
+    "/api/agent/conversations/{id}/workflows/{workflowId}/confirm": {
+      "post": {
+        "operationId": "confirmWorkflow",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workflowId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transcript"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "agent-conversation-controller"
+        ]
+      }
+    },
+    "/api/agent/runs/{id}": {
+      "get": {
+        "operationId": "execution",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Execution"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "agent-run-controller"
+        ]
+      }
+    },
+    "/api/agent/runs/{id}/history": {
+      "get": {
+        "operationId": "history",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "through",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 4096,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentContextPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "agent-run-controller"
+        ]
+      }
+    },
+    "/api/agent/runs/{id}/tool-results/{callId}": {
+      "get": {
+        "operationId": "result",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "callId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 4096,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentContextPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "agent-run-controller"
+        ]
+      }
+    },
+    "/api/agent/skills": {
+      "get": {
+        "operationId": "skills",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Entry"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "workbench-agent-controller"
         ]
       }
     },
@@ -1286,7 +3460,7 @@
     },
     "/api/assets/{kind}/{assetId}/versions": {
       "post": {
-        "operationId": "upload",
+        "operationId": "upload_1",
         "parameters": [
           {
             "in": "path",
@@ -1518,7 +3692,7 @@
         ]
       },
       "get": {
-        "operationId": "get_2",
+        "operationId": "get_3",
         "parameters": [
           {
             "in": "path",
@@ -1607,7 +3781,7 @@
     },
     "/api/episodes/{episodeId}/breakdowns": {
       "post": {
-        "operationId": "submit_3",
+        "operationId": "submit_4",
         "parameters": [
           {
             "in": "path",
@@ -1661,7 +3835,7 @@
     },
     "/api/episodes/{episodeId}/breakdowns/latest": {
       "get": {
-        "operationId": "latest",
+        "operationId": "latest_1",
         "parameters": [
           {
             "in": "path",
@@ -1705,9 +3879,344 @@
         ]
       }
     },
+    "/api/episodes/{episodeId}/creative": {
+      "get": {
+        "operationId": "episode",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episodeId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeEpisode"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "creative-controller"
+        ]
+      }
+    },
+    "/api/episodes/{episodeId}/creative/script": {
+      "post": {
+        "operationId": "script",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episodeId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreativeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeTurn"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "creative-controller"
+        ]
+      }
+    },
+    "/api/episodes/{episodeId}/creative/script/{id}": {
+      "get": {
+        "operationId": "scriptPreview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episodeId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScriptDraft"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "creative-controller"
+        ]
+      }
+    },
+    "/api/episodes/{episodeId}/creative/session": {
+      "post": {
+        "operationId": "openCreativeSession",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episodeId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeEpisode"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "creative-controller"
+        ]
+      }
+    },
+    "/api/episodes/{episodeId}/creative/storyboard": {
+      "post": {
+        "operationId": "storyboard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episodeId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreativeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeTurn"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "creative-controller"
+        ]
+      }
+    },
+    "/api/episodes/{episodeId}/creative/storyboard/{id}": {
+      "get": {
+        "operationId": "storyboardPreview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episodeId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeStoryboard"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "creative-controller"
+        ]
+      }
+    },
+    "/api/episodes/{episodeId}/creative/storyboard/{id}/apply": {
+      "post": {
+        "operationId": "applyStoryboard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episodeId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeTurn"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "creative-controller"
+        ]
+      }
+    },
     "/api/episodes/{episodeId}/generation-batches": {
       "get": {
-        "operationId": "list_3",
+        "operationId": "list_6",
         "parameters": [
           {
             "in": "path",
@@ -1756,7 +4265,7 @@
         ]
       },
       "post": {
-        "operationId": "submit_2",
+        "operationId": "submit_3",
         "parameters": [
           {
             "in": "path",
@@ -1809,9 +4318,208 @@
         ]
       }
     },
+    "/api/episodes/{episodeId}/shot-edit-proposals": {
+      "post": {
+        "operationId": "preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episodeId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Preview"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Proposal"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "shot-edit-controller"
+        ]
+      }
+    },
+    "/api/episodes/{episodeId}/shot-edit-proposals/latest": {
+      "get": {
+        "operationId": "latest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episodeId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Proposal"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "shot-edit-controller"
+        ]
+      }
+    },
+    "/api/episodes/{episodeId}/shot-edit-proposals/{id}/apply": {
+      "post": {
+        "operationId": "apply",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episodeId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Proposal"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "shot-edit-controller"
+        ]
+      }
+    },
+    "/api/episodes/{episodeId}/shot-edit-proposals/{id}/discard": {
+      "post": {
+        "operationId": "discard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episodeId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Proposal"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "shot-edit-controller"
+        ]
+      }
+    },
     "/api/episodes/{episodeId}/shots": {
       "get": {
-        "operationId": "list_4",
+        "operationId": "list_8",
         "parameters": [
           {
             "in": "path",
@@ -1969,9 +4677,238 @@
         ]
       }
     },
+    "/api/episodes/{episodeId}/storyboard-variants": {
+      "get": {
+        "operationId": "list_5",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episodeId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryboardVariantOverview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "storyboard-variant-controller"
+        ]
+      },
+      "post": {
+        "operationId": "submit_2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episodeId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoryboardVariantSubmit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryboardVariant"
+                }
+              }
+            },
+            "description": "Accepted"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "storyboard-variant-controller"
+        ]
+      }
+    },
+    "/api/episodes/{episodeId}/storyboard-variants/revisions/{revisionId}/adopt": {
+      "post": {
+        "operationId": "adopt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episodeId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoryboardVariantAdopt"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "storyboard-variant-controller"
+        ]
+      }
+    },
+    "/api/episodes/{episodeId}/storyboard-variants/{variantId}/archive": {
+      "post": {
+        "operationId": "archive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episodeId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variantId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "storyboard-variant-controller"
+        ]
+      }
+    },
+    "/api/episodes/{episodeId}/workflow": {
+      "get": {
+        "operationId": "plan_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episodeId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/EpisodePlan"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "episode-workflow-controller"
+        ]
+      }
+    },
     "/api/generation-batches/{id}": {
       "get": {
-        "operationId": "get_7",
+        "operationId": "get_8",
         "parameters": [
           {
             "in": "path",
@@ -2005,6 +4942,312 @@
         ]
       }
     },
+    "/api/image-experience/creations": {
+      "post": {
+        "operationId": "create_5",
+        "parameters": [
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageCreationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageCreation"
+                }
+              }
+            },
+            "description": "Accepted"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "image-experience-controller"
+        ]
+      }
+    },
+    "/api/image-experience/creations/{id}/decision": {
+      "put": {
+        "operationId": "decide",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageDecisionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageCreation"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "image-experience-controller"
+        ]
+      }
+    },
+    "/api/image-experience/creations/{id}/preferences": {
+      "post": {
+        "operationId": "remember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImagePreferenceRemember"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImagePreference"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "image-experience-controller"
+        ]
+      }
+    },
+    "/api/image-experience/preferences/{id}": {
+      "put": {
+        "operationId": "edit",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImagePreferenceEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImagePreference"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "image-experience-controller"
+        ]
+      }
+    },
+    "/api/image-experience/recipes": {
+      "post": {
+        "operationId": "recipe",
+        "parameters": [
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageRecipeSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageRecipe"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "image-experience-controller"
+        ]
+      }
+    },
+    "/api/image-experience/targets/{type}/{targetId}": {
+      "get": {
+        "operationId": "context",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "SHOT",
+                "CHARACTER",
+                "SCENE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "targetId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageExperienceContext"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "image-experience-controller"
+        ]
+      }
+    },
     "/api/me": {
       "get": {
         "operationId": "me",
@@ -2030,9 +5273,113 @@
         ]
       }
     },
+    "/api/me/team-invitations": {
+      "get": {
+        "operationId": "inbox",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InvitationView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "team-controller"
+        ]
+      }
+    },
+    "/api/me/team-invitations/{id}/accept": {
+      "post": {
+        "operationId": "accept",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "team-controller"
+        ]
+      }
+    },
+    "/api/me/team-invitations/{id}/decline": {
+      "post": {
+        "operationId": "decline",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "team-controller"
+        ]
+      }
+    },
     "/api/projects": {
       "get": {
-        "operationId": "list_1",
+        "operationId": "list_3",
         "parameters": [
           {
             "in": "query",
@@ -2069,7 +5416,7 @@
         ]
       },
       "post": {
-        "operationId": "create_1",
+        "operationId": "create_3",
         "parameters": [
           {
             "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
@@ -2151,7 +5498,7 @@
         ]
       },
       "get": {
-        "operationId": "get_1",
+        "operationId": "get_2",
         "parameters": [
           {
             "in": "path",
@@ -2313,9 +5660,254 @@
         ]
       }
     },
+    "/api/projects/{projectId}/creative": {
+      "get": {
+        "operationId": "project",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeProject"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "creative-controller"
+        ]
+      }
+    },
+    "/api/projects/{projectId}/creative/plan": {
+      "post": {
+        "operationId": "plan",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreativeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeTurn"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "creative-controller"
+        ]
+      }
+    },
+    "/api/projects/{projectId}/creative/plan/{id}": {
+      "get": {
+        "operationId": "planPreview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativePlanPreview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "creative-controller"
+        ]
+      }
+    },
+    "/api/projects/{projectId}/creative/plan/{id}/accept": {
+      "post": {
+        "operationId": "acceptPlan",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeTurn"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "creative-controller"
+        ]
+      }
+    },
+    "/api/projects/{projectId}/creative/source": {
+      "post": {
+        "operationId": "upload",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadSource"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeSource"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "creative-controller"
+        ]
+      }
+    },
     "/api/projects/{projectId}/episodes": {
       "get": {
-        "operationId": "list_2",
+        "operationId": "list_4",
         "parameters": [
           {
             "in": "path",
@@ -2352,7 +5944,7 @@
         ]
       },
       "post": {
-        "operationId": "create_2",
+        "operationId": "create_4",
         "parameters": [
           {
             "in": "path",
@@ -2445,7 +6037,7 @@
     },
     "/api/runtime": {
       "get": {
-        "operationId": "get_6",
+        "operationId": "get_7",
         "responses": {
           "200": {
             "content": {
@@ -2507,7 +6099,7 @@
     },
     "/api/shots/{shotId}": {
       "get": {
-        "operationId": "get",
+        "operationId": "get_1",
         "parameters": [
           {
             "in": "path",
@@ -2807,9 +6399,134 @@
         ]
       }
     },
+    "/api/skills": {
+      "get": {
+        "operationId": "list_7",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "role",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SkillEntry"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "skill-controller"
+        ]
+      }
+    },
+    "/api/skills/{id}": {
+      "get": {
+        "operationId": "read",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillDocument"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "skill-controller"
+        ]
+      },
+      "put": {
+        "operationId": "save",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveSkill"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillDocument"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "skill-controller"
+        ]
+      }
+    },
     "/api/task-metrics": {
       "get": {
-        "operationId": "get_5",
+        "operationId": "get_6",
         "responses": {
           "200": {
             "content": {
@@ -2834,7 +6551,7 @@
     },
     "/api/tasks/{taskId}": {
       "get": {
-        "operationId": "get_4",
+        "operationId": "get_5",
         "parameters": [
           {
             "in": "path",
@@ -3050,6 +6767,539 @@
         ]
       }
     },
+    "/api/teams": {
+      "get": {
+        "operationId": "list_1",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TeamView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "team-controller"
+        ]
+      },
+      "post": {
+        "operationId": "create_1",
+        "parameters": [
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeamName"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamView"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "team-controller"
+        ]
+      }
+    },
+    "/api/teams/{teamId}": {
+      "get": {
+        "operationId": "get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "teamId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "team-controller"
+        ]
+      },
+      "patch": {
+        "operationId": "rename",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "teamId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeamName"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "team-controller"
+        ]
+      }
+    },
+    "/api/teams/{teamId}/invitations": {
+      "get": {
+        "operationId": "invitations",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "teamId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InvitationView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "team-controller"
+        ]
+      },
+      "post": {
+        "operationId": "invite",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "teamId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeamInvite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationView"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "team-controller"
+        ]
+      }
+    },
+    "/api/teams/{teamId}/invitations/{id}": {
+      "delete": {
+        "operationId": "revoke",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "teamId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "team-controller"
+        ]
+      }
+    },
+    "/api/teams/{teamId}/members": {
+      "get": {
+        "operationId": "members",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "teamId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MemberView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "team-controller"
+        ]
+      }
+    },
+    "/api/teams/{teamId}/members/{userId}": {
+      "delete": {
+        "operationId": "remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "teamId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "team-controller"
+        ]
+      },
+      "patch": {
+        "operationId": "changeRole",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "teamId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeamRoleChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "team-controller"
+        ]
+      }
+    },
+    "/api/teams/{teamId}/projects": {
+      "get": {
+        "operationId": "list_2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "teamId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Project"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "team-project-controller"
+        ]
+      },
+      "post": {
+        "operationId": "create_2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "teamId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "team-project-controller"
+        ]
+      }
+    },
     "/api/visual-styles": {
       "get": {
         "operationId": "list",
@@ -3158,7 +7408,7 @@
         ]
       },
       "get": {
-        "operationId": "get_3",
+        "operationId": "get_4",
         "parameters": [
           {
             "in": "path",

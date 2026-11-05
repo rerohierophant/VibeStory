@@ -173,14 +173,18 @@ public class TaskService {
         return new Submission(Long.toString(taskId));
     }
 
-    public record Diagnostics(String provider, String model, String rawResponse) {}
+    public record Diagnostics(String provider, String model, String rawResponse, String status, String errorCode) {}
 
     @Transactional(readOnly = true)
-    public Diagnostics diagnostics(long userId, long taskId, int attempt) {
+    public Diagnostics diagnostics(long userId, long taskId, int attempt, boolean includeRaw) {
         scope.task(userId, taskId);
-        var row = db.fetchOne("select t.provider, a.actual_model, a.raw_response from task_attempt a join task t on t.id = a.task_id where a.task_id = ? and a.attempt_no = ?", taskId, attempt);
-        if (row == null || row.get("raw_response") == null) throw ApiException.notFound();
-        return new Diagnostics(row.get("provider", String.class), row.get("actual_model", String.class), row.get("raw_response", String.class));
+        var row = db.fetchOne("""
+            select t.provider,a.actual_model,case when ? then a.raw_response end as raw_response,a.status,a.error_code
+            from task_attempt a join task t on t.id=a.task_id where a.task_id=? and a.attempt_no=?
+            """, includeRaw, taskId, attempt);
+        if (row == null || includeRaw && row.get("raw_response") == null) throw ApiException.notFound();
+        return new Diagnostics(row.get("provider", String.class), row.get("actual_model", String.class),
+            row.get("raw_response", String.class), row.get("status", String.class), row.get("error_code", String.class));
     }
 
     @Transactional(readOnly = true)

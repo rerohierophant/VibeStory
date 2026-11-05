@@ -2,6 +2,7 @@ import { NavLink, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Badge } from '@/components/Badge';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
+import { EpisodeWorkflowStatus } from '@/features/EpisodeWorkflowStatus';
 import { StoryTab } from '@/features/StoryTab';
 import { StoryboardTab } from '@/features/StoryboardTab';
 import { VideoTab } from '@/features/VideoTab';
@@ -16,7 +17,7 @@ const tabs = [
 export function EpisodeWorkspacePage() {
   const { id = '', episodeId = '', tab = 'story' } = useParams();
   const project = useProject(id);
-  const { confirmAll } = useStore();
+  const { confirmAll, workspaceReadOnly } = useStore();
   const shots = useEpisodeShots(episodeId);
   const navigate = useNavigate();
 
@@ -70,6 +71,8 @@ export function EpisodeWorkspacePage() {
           </div>
         </div>
 
+        <div className="px-8 pb-2 empty:hidden"><EpisodeWorkflowStatus episodeId={episode.id} /></div>
+
         <nav className="flex items-center gap-1 px-6">
           {tabs.map((t) => {
             const disabled = t.key !== 'story' && !hasShots;
@@ -107,7 +110,7 @@ export function EpisodeWorkspacePage() {
               <button
                 type="button"
                 onClick={() => confirmAll(episode.id)}
-                disabled={confirmed === shots.length}
+                disabled={workspaceReadOnly || confirmed === shots.length}
                 className="text-[11px] text-muted transition hover:text-fg disabled:cursor-not-allowed disabled:opacity-50"
                 title="把这一集所有待确认镜头标记为已确认"
               >
@@ -132,13 +135,13 @@ export function EpisodeWorkspacePage() {
           (hasShots ? (
             <StoryboardTab episodeId={episode.id} projectId={project.id} />
           ) : (
-            <Navigate to={`../story`} replace />
+            <Navigate to={`/projects/${project.id}/episodes/${episode.id}/story`} replace />
           ))}
         {activeTab === 'video' &&
           (hasShots ? (
             <VideoTab episodeId={episode.id} projectId={project.id} />
           ) : (
-            <Navigate to={`../story`} replace />
+            <Navigate to={`/projects/${project.id}/episodes/${episode.id}/story`} replace />
           ))}
       </main>
     </div>

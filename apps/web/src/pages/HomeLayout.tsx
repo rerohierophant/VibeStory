@@ -97,6 +97,17 @@ export function HomeLayout() {
 
           <div className="mt-3 space-y-3 border-t border-stroke/15 pt-4">
             <NavItem
+              to="/teams"
+              label="团队管理"
+              collapsed={collapsed}
+              icon={
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="h-4 w-4" aria-hidden="true">
+                  <circle cx="6" cy="5" r="2.2" />
+                  <path d="M2 13v-1.4a3.6 3.6 0 0 1 3.6-3.6h.8a3.6 3.6 0 0 1 3.6 3.6V13m.2-10.2a2.2 2.2 0 0 1 0 4.4m1.3 1.1a3.6 3.6 0 0 1 2.5 3.4V13" />
+                </svg>
+              }
+            />
+            <NavItem
               to="/settings"
               label="设置"
               collapsed={collapsed}

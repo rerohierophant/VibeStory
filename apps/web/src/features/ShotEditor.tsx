@@ -4,10 +4,7 @@ import { Button } from '@/components/Button';
 import { PlaceholderImage } from '@/components/PlaceholderImage';
 import { ImageGenerationSource } from '@/components/ImageGenerationSource';
 import { useStore } from '@/lib/store';
-import type { CameraMove, Episode, Shot, ShotSize } from '@/lib/types';
-
-const shotSizes: ShotSize[] = ['远景', '全景', '中景', '近景', '特写'];
-const cameraMoves: CameraMove[] = ['固定', '推', '拉', '摇', '移', '跟'];
+import { cameraMoves, shotSizes, type CameraMove, type Episode, type Shot, type ShotSize } from '@/lib/types';
 
 export function ShotEditor({
   shot,
@@ -18,7 +15,7 @@ export function ShotEditor({
   episode?: Episode;
   onClose: () => void;
 }) {
-  const { updateShot, confirmShot, unconfirmShot } = useStore();
+  const { updateShot, confirmShot, unconfirmShot, workspaceReadOnly } = useStore();
 
   useEffect(() => {
     if (!shot) return;
@@ -72,6 +69,7 @@ export function ShotEditor({
                 aria-label="画面描述"
                 className="field mt-1.5 min-h-24 resize-y text-sm disabled:opacity-60"
                 value={shot.description}
+                disabled={workspaceReadOnly}
                 onChange={(e) => set({ description: e.target.value })}
               />
             </label>
@@ -82,6 +80,7 @@ export function ShotEditor({
                 aria-label="台词"
                 className="field mt-1.5 min-h-16 resize-y text-sm disabled:opacity-60"
                 value={shot.dialogue}
+                disabled={workspaceReadOnly}
                 onChange={(e) => set({ dialogue: e.target.value })}
               />
             </label>
@@ -92,7 +91,8 @@ export function ShotEditor({
                 <select
                   className="field mt-1.5 text-sm disabled:opacity-60"
                   value={shot.shotSize}
-                  onChange={(e) => set({ shotSize: e.target.value as ShotSize })}
+                  disabled={workspaceReadOnly}
+                onChange={(e) => set({ shotSize: e.target.value as ShotSize })}
                 >
                   {shotSizes.map((s) => (
                     <option key={s} value={s}>
@@ -106,7 +106,8 @@ export function ShotEditor({
                 <select
                   className="field mt-1.5 text-sm disabled:opacity-60"
                   value={shot.cameraMove}
-                  onChange={(e) => set({ cameraMove: e.target.value as CameraMove })}
+                  disabled={workspaceReadOnly}
+                onChange={(e) => set({ cameraMove: e.target.value as CameraMove })}
                 >
                   {cameraMoves.map((s) => (
                     <option key={s} value={s}>
@@ -123,7 +124,8 @@ export function ShotEditor({
                 <input
                   className="field mt-1.5 text-sm disabled:opacity-60"
                   value={shot.sceneName}
-                  onChange={(e) => set({ sceneName: e.target.value })}
+                  disabled={workspaceReadOnly}
+                onChange={(e) => set({ sceneName: e.target.value })}
                 />
               </label>
               <label className="block text-xs text-muted">
@@ -135,7 +137,8 @@ export function ShotEditor({
                   step={500}
                   className="field mt-1.5 text-sm disabled:opacity-60"
                   value={shot.durationMs}
-                  onChange={(e) => set({ durationMs: Math.max(1500, Number(e.target.value) || 3000) })}
+                  disabled={workspaceReadOnly}
+                onChange={(e) => set({ durationMs: Math.max(1500, Number(e.target.value) || 3000) })}
                 />
               </label>
             </div>
@@ -162,11 +165,11 @@ export function ShotEditor({
 
         <footer className="space-y-2 border-t border-stroke/20 p-5">
           {shot.status === 'draft' ? (
-            <Button className="w-full" size="sm" onClick={() => confirmShot(shot.id)}>
+            <Button className="w-full" size="sm" disabled={workspaceReadOnly} onClick={() => confirmShot(shot.id)}>
               确认这一镜
             </Button>
           ) : (
-            <Button variant="outline" size="sm" className="w-full" onClick={() => unconfirmShot(shot.id)}>
+            <Button variant="outline" size="sm" className="w-full" disabled={workspaceReadOnly} onClick={() => unconfirmShot(shot.id)}>
               取消确认
             </Button>
           )}

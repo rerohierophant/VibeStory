@@ -44,14 +44,14 @@ public class ShotService {
                        @io.swagger.v3.oas.annotations.media.Schema(allowableValues = {"draft", "confirmed"}) String status,
                        List<String> characterNames, List<Image> images, String selectedImageId,
                        @io.swagger.v3.oas.annotations.media.Schema(allowableValues = {"idle", "queued", "running", "failed", "unknown"}) String imageState, Video video,
-                       String imageTaskId, String imageError, boolean imageRetryable) {}
+                       String imageTaskId, String imageError, boolean imageRetryable, long version) {}
 
     @Transactional(readOnly = true)
     public List<View> list(long userId, long episodeId, String filter) {
         scope.episode(userId, episodeId);
         if (!List.of("all", "todo", "draft").contains(filter)) throw ApiException.badRequest("未知镜头筛选条件");
         var rows = shots.findByEpisodeIdAndUserIdOrderBySeq(episodeId, userId);
-        var images = db.fetch("select * from shot_image where episode_id = ? and status = 'READY' order by id", episodeId)
+        var images = db.fetch("select * from shot_image where episode_id = ? and status = 'READY' and visible_in_storyboard order by id", episodeId)
             .stream().collect(Collectors.groupingBy(row -> row.get("shot_id", Long.class)));
         var videos = db.fetch("select distinct on (shot_id) * from video where episode_id = ? order by shot_id, id desc", episodeId)
             .stream().collect(Collectors.toMap(row -> row.get("shot_id", Long.class), row -> row));
@@ -59,7 +59,7 @@ public class ShotService {
             .stream().collect(Collectors.toMap(row -> row.get("target_id", Long.class), row -> row));
         var attempts = db.fetch("select target_id, sum(attempt_count) as attempts from task where episode_id = ? and type = 'VIDEO' group by target_id", episodeId)
             .stream().collect(Collectors.toMap(row -> row.get("target_id", Long.class), row -> row.get("attempts", Integer.class)));
-        var imageTasks = db.fetch("select distinct on (target_id) * from task where episode_id=? and type='IMAGE' order by target_id,(status in ('QUEUED','RUNNING')) desc,id desc", episodeId)
+        var imageTasks = db.fetch("select distinct on (target_id) * from task where episode_id=? and type='IMAGE' and storyboard_variant_revision_id is null order by target_id,(status in ('QUEUED','RUNNING')) desc,id desc", episodeId)
             .stream().collect(Collectors.toMap(row -> row.get("target_id", Long.class), row -> row));
         var guidance = db.fetch("select id,input_snapshot from task where episode_id=? and type='IMAGE'", episodeId)
             .stream().collect(Collectors.toMap(row -> row.get("id", Long.class), row -> {
@@ -78,7 +78,8 @@ public class ShotService {
     }
 
     @Transactional
-    public View update(long userId, long id, String description, String dialogue, String sceneName, String size, String move, Integer duration) {
+    public View update(long userId, long id, String description, String dialogue, String sceneName, String size, String move,
+                       Integer duration, Long expectedVersion) {
         scope.shot(userId, id);
         if (description != null) TextInput.validate(description, 16000, "画面描述");
         if (dialogue != null) TextInput.validate(dialogue, 16000, "台词");
@@ -86,6 +87,8 @@ public class ShotService {
         if (size != null && !ShotDraftValidation.SIZES.contains(size) || move != null && !ShotDraftValidation.MOVES.contains(move) || duration != null && (duration < 1500 || duration > 12000))
             throw ApiException.badRequest("镜头参数无效");
         var shot = find(userId, id);
+        if (expectedVersion != null && shot.version() != expectedVersion)
+            throw ApiException.conflict("镜头已被修改，请刷新后再编辑");
         if (shot.update(description, dialogue, sceneName, size, move, duration)) {
             if (sceneName != null) {
                 var binding = assets.bind(userId, shot.projectId(), id, shot.sceneName(), shot.characterNames());
@@ -115,6 +118,10 @@ public class ShotService {
         return list(userId, episodeId, "all");
     }
 
+    public boolean hasActiveImageVariants(long episodeId) {
+        return db.fetchExists(db.selectOne().from("storyboard_variant").where("episode_id=? and not archived", episodeId));
+    }
+
     @Transactional
     public List<Long> replace(long userId, long projectId, long episodeId, List<TextProvider.ShotDraft> drafts) {
         String directory = "u/" + userId + "/p/" + projectId + "/e/" + episodeId;
@@ -138,6 +145,7 @@ public class ShotService {
                 retryable = false, lease_owner = null, lease_until = null, version = version + 1, updated_at = now(), finished_at = now()
             where episode_id = ? and type in ('VIDEO','IMAGE') and status in ('QUEUED','RUNNING')
             """, episodeId);
+        db.execute("delete from storyboard_variant where episode_id = ?", episodeId);
         db.execute("delete from shot where episode_id = ? and user_id = ?", episodeId, userId);
         var created = new ArrayList<Shot>();
         for (int index = 0; index < drafts.size(); index++) created.add(new Shot(userId, projectId, episodeId, index + 1, drafts.get(index)));
@@ -179,7 +187,7 @@ public class ShotService {
             fields.description(), fields.dialogue(), fields.durationMs(), fields.status(), fields.characterNames(), List.copyOf(candidates), selected,
             imageTask == null ? "idle" : AssetService.state(imageTask.get("status", String.class)), projected,
             imageTask==null?null:imageTask.get("id",String.class),imageTask==null?null:imageTask.get("error_message",String.class),
-            imageTask!=null && imageTask.get("retryable",Boolean.class) && imageTask.get("attempt_count",Integer.class)<worker.maxAttempts());
+            imageTask!=null && imageTask.get("retryable",Boolean.class) && imageTask.get("attempt_count",Integer.class)<worker.maxAttempts(), shot.version());
     }
 
     private void touch(long episodeId, long userId) {

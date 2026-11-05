@@ -128,6 +128,20 @@ vibestory:
     generation-timeout: ${VIDEO_GENERATION_TIMEOUT:20m}
   storage:
     root: ${STORAGE_ROOT:./data/storage}
+  skills:
+    root: ${SKILLS_ROOT:./skills}
+  agent-context:
+    enabled: ${AGENT_CONTEXT_ENABLED:true}
+    tool-result-bytes: ${AGENT_CONTEXT_TOOL_RESULT_BYTES:16384}
+    tool-batch-bytes: ${AGENT_CONTEXT_TOOL_BATCH_BYTES:65536}
+    preview-bytes: ${AGENT_CONTEXT_PREVIEW_BYTES:1536}
+    trigger-bytes: ${AGENT_CONTEXT_TRIGGER_BYTES:262144}
+    target-bytes: ${AGENT_CONTEXT_TARGET_BYTES:196608}
+    keep-recent-results: ${AGENT_CONTEXT_KEEP_RECENT_RESULTS:3}
+    keep-recent-groups: ${AGENT_CONTEXT_KEEP_RECENT_GROUPS:2}
+    summary-input-bytes: ${AGENT_CONTEXT_SUMMARY_INPUT_BYTES:65536}
+    summary-output-bytes: ${AGENT_CONTEXT_SUMMARY_OUTPUT_BYTES:8192}
+    max-summary-calls: ${AGENT_CONTEXT_MAX_SUMMARY_CALLS:32}
 logging:
   structured:
     format:

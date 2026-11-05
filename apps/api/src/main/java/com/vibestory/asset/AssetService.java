@@ -50,7 +50,7 @@ public class AssetService {
     private List<Card> cards(long userId, Long projectId, boolean characters) {
         String table = table(characters), column = column(characters);
         var rows = projectId == null
-            ? db.fetch("select a.*, p.name as project_name from " + table + " a join project p on p.id=a.project_id where a.user_id=? order by a.project_id,a.id", userId)
+            ? db.fetch("select a.*, p.name as project_name from " + table + " a join project p on p.id=a.project_id where a.user_id=? and p.team_id is null order by a.project_id,a.id", userId)
             : db.fetch("select a.*, p.name as project_name from " + table + " a join project p on p.id=a.project_id where a.user_id=? and a.project_id=? order by a.id", userId, projectId);
         return rows.stream().map(row -> {
             long id = row.get("id", Long.class);

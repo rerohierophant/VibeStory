@@ -5,6 +5,7 @@ import com.vibestory.batch.GenerationBatch;
 import com.vibestory.common.ApiException;
 import com.vibestory.dispatch.*;
 import com.vibestory.image.ImageTaskService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.*;
 import java.util.concurrent.*;
 import org.jooq.DSLContext;
@@ -61,6 +62,136 @@ class PhaseSevenIntegrationTest extends PostgresSupport {
         var view=submit("image",GenerationBatch.Type.IMAGE,List.of(draft,a,b),false);
         assertThat(view.progress().accepted()).isEqualTo(2);assertThat(view.progress().blocked()).isEqualTo(1);
         assertThat(batches.list(alice.id(),episode,GenerationBatch.Type.IMAGE)).hasSize(1);
+    }
+    @Test void agentRetriesOnlyKnownFailedMembersOfTheScopedLatestBatch() throws Exception {
+        var batch = submit("agent-retry", GenerationBatch.Type.IMAGE, List.of(a, b), false);
+        long failed = Long.parseLong(batch.members().getFirst().taskId());
+        long unknown = Long.parseLong(batch.members().getLast().taskId());
+        db.execute("update task set status = 'FAILED', retryable = true, attempt_count = 1 where id = ?", failed);
+        db.execute("update task set status = 'UNKNOWN' where id = ?", unknown);
+        String command = """
+            {"requestKey":"%s","projectId":%d,"episodeId":%d,"instruction":"只重试上次失败的"}
+            """.formatted(UUID.randomUUID(), project, episode);
+        mvc.perform(post("/api/agent/commands").with(user(bob)).with(csrf()).contentType("application/json").content(command))
+            .andExpect(status().isNotFound());
+        mvc.perform(post("/api/agent/commands").with(user(alice)).with(csrf()).contentType("application/json").content(command))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.batchId").value(batch.id()))
+            .andExpect(jsonPath("$.details.length()").value(1));
+        assertThat(db.fetchOne("select status from task where id = ?", failed).get(0, String.class)).isEqualTo("QUEUED");
+        assertThat(db.fetchOne("select status from task where id = ?", unknown).get(0, String.class)).isEqualTo("UNKNOWN");
+        db.execute("update task set status = 'FAILED', retryable = true where id = ?", failed);
+        mvc.perform(post("/api/agent/commands").with(user(alice)).with(csrf()).contentType("application/json").content(command))
+            .andExpect(status().isOk());
+        assertThat(db.fetchOne("select status from task where id = ?", failed).get(0, String.class)).isEqualTo("FAILED");
+    }
+    @Test void episodeWorkflowLinksOnlyMatchingPageBatchesAndContinuesUncoveredShots() throws Exception {
+        String path = "/api/agent/conversations/" + UUID.randomUUID();
+        String plan = "/api/episodes/" + episode + "/workflow";
+        String batchesPath = "/api/episodes/" + episode + "/generation-batches";
+        db.execute("delete from shot where episode_id = ?", episode);
+        db.execute("update episode set story_content = '准备从 Agent 发起拆镜，再从分镜页确认和出图。' where id = ?", episode);
+        mvc.perform(get(plan).with(user(bob))).andExpect(status().isNotFound());
+        mvc.perform(get(plan).with(user(alice))).andExpect(status().isOk())
+            .andExpect(jsonPath("$.next.action").value("BREAK_DOWN")).andExpect(jsonPath("$.storyContent").doesNotExist());
+        var started = mvc.perform(post("/api/episodes/" + episode + "/breakdowns").with(user(alice)).with(csrf()))
+            .andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString();
+        String pageTask = new ObjectMapper().readTree(started).path("taskId").asText();
+        mvc.perform(multipart(path + "/messages").param("requestKey", UUID.randomUUID().toString())
+                .param("episodeId", Long.toString(episode)).param("instruction", "把这集的故事拆成镜头，我确认后给没图的镜头出图")
+                .with(user(alice)).with(csrf()))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.messages[0].workflow.state").value("WAITING_BREAKDOWN"))
+            .andExpect(jsonPath("$.messages[0].workflow.taskId").value(pageTask));
+        long task = Long.parseLong(pageTask);
+        a = shot(1, "DRAFT");
+        b = shot(2, "DRAFT");
+        db.execute("update task set status='SUCCEEDED', output_snapshot=jsonb_build_object('shotIds', jsonb_build_array(?,?)) where id=?",
+            a, b, task);
+        mvc.perform(get(plan).with(user(alice))).andExpect(jsonPath("$.next.action").value("CONFIRM_SHOTS"));
+
+        mvc.perform(put("/api/shots/" + a + "/status").with(user(alice)).with(csrf()).contentType("application/json")
+                .content("{\"status\":\"confirmed\"}"))
+            .andExpect(status().isOk());
+        String submit = """
+            {"type":"IMAGE","requestKey":"phase12-page","shotIds":["%d"]}
+            """.formatted(a);
+        mvc.perform(post(batchesPath).with(user(alice)).with(csrf()).contentType("application/json").content(submit))
+            .andExpect(status().isAccepted());
+        long pageBatch = db.fetchOne("select id from generation_batch where request_key='phase12-page'").get(0, Long.class);
+        mvc.perform(post("/api/episodes/" + episode + "/shots/confirm-all").with(user(alice)).with(csrf()))
+            .andExpect(status().isOk());
+        mvc.perform(multipart(path + "/messages").param("requestKey", UUID.randomUUID().toString())
+                .param("episodeId", Long.toString(episode)).param("instruction", "继续做这集").with(user(alice)).with(csrf()))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.messages[0].workflow.state").value("GENERATING"))
+            .andExpect(jsonPath("$.messages[0].workflow.batches[0].id").value(Long.toString(pageBatch)))
+            .andExpect(jsonPath("$.messages[0].workflow.batches[1].members[0].shotId").value(Long.toString(b)));
+        mvc.perform(post(batchesPath).with(user(alice)).with(csrf()).contentType("application/json").content(submit))
+            .andExpect(status().isAccepted()).andExpect(jsonPath("$.id").value(Long.toString(pageBatch)));
+        assertThat(db.fetchCount(org.jooq.impl.DSL.table("generation_batch"))).isEqualTo(2);
+        assertThat(db.fetchOne("select count(*) from task where type='IMAGE'").get(0, Integer.class)).isEqualTo(2);
+        mvc.perform(get(plan).with(user(alice))).andExpect(jsonPath("$.next.action").value("WAIT_FOR_IMAGES"));
+    }
+
+    @Test void aNewStoryRevisionCannotAttachPageBatchesOrResumeAnOlderRun() throws Exception {
+        String path = "/api/agent/conversations/" + UUID.randomUUID();
+        db.execute("delete from shot where episode_id = ?", episode);
+        db.execute("update episode set story_content = '这是一段足够长的旧正文，用来验证拆镜完成后修改正文会阻断旧流程。' where id = ?", episode);
+        mvc.perform(multipart(path + "/messages").param("requestKey", UUID.randomUUID().toString())
+                .param("episodeId", Long.toString(episode)).param("instruction", "把这集的故事拆成镜头，我确认后给没图的镜头出图")
+                .with(user(alice)).with(csrf()))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.messages[0].workflow.state").value("WAITING_BREAKDOWN"));
+        long task = db.fetchOne("select breakdown_task_id from agent_workflow").get(0, Long.class);
+        a = shot(1, "CONFIRMED");
+        db.execute("update task set status='SUCCEEDED', output_snapshot=jsonb_build_object('shotIds', jsonb_build_array(?)) where id=?", a, task);
+        mvc.perform(put("/api/episodes/" + episode + "/story").with(user(alice)).with(csrf()).contentType("application/json")
+                .content("{\"story\":\"这是后来编辑的新正文。\"}"))
+            .andExpect(status().isOk());
+        mvc.perform(post("/api/episodes/" + episode + "/generation-batches").with(user(alice)).with(csrf()).contentType("application/json")
+                .content("""
+                    {"type":"IMAGE","requestKey":"phase12-new-revision","shotIds":["%d"]}
+                    """.formatted(a)))
+            .andExpect(status().isAccepted());
+        mvc.perform(multipart(path + "/messages").param("requestKey", UUID.randomUUID().toString())
+                .param("episodeId", Long.toString(episode)).param("instruction", "继续").with(user(alice)).with(csrf()))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.messages[0].workflow.state").value("BLOCKED"))
+            .andExpect(jsonPath("$.messages[0].workflow.batches").isEmpty());
+        assertThat(db.fetchCount(org.jooq.impl.DSL.table("generation_batch"))).isEqualTo(1);
+    }
+
+    @Test void workflowConfirmationKeepsExistingImagesAndRetriesOnlyItsOwnKnownFailures() throws Exception {
+        String conversation = UUID.randomUUID().toString();
+        String path = "/api/agent/conversations/" + conversation;
+        String start = "把这集的故事拆成镜头，我确认后给没图的镜头出图";
+        db.execute("update episode set story_content = '已有足够长的测试正文，供拆镜流程生成一组镜头并人工确认。' where id = ?", episode);
+        db.execute("delete from shot where episode_id = ?", episode);
+        mvc.perform(multipart(path + "/messages").param("requestKey", UUID.randomUUID().toString())
+                .param("episodeId", Long.toString(episode)).param("instruction", start).with(user(alice)).with(csrf()))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.messages[0].workflow.state").value("WAITING_BREAKDOWN"));
+        var run = db.fetchOne("select id, breakdown_task_id from agent_workflow");
+        String confirm = path + "/workflows/" + run.get("id", String.class) + "/confirm";
+        mvc.perform(post(confirm).with(user(alice)).with(csrf())).andExpect(status().isConflict());
+        mvc.perform(post(confirm).with(user(bob)).with(csrf())).andExpect(status().isNotFound());
+
+        a = shot(1, "CONFIRMED");
+        b = shot(2, "DRAFT");
+        draft = shot(3, "DRAFT");
+        db.execute("insert into shot_image(shot_id,episode_id,selected,storage_key) values (?,?,true,'existing-candidate')", a, episode);
+        db.execute("update task set status = 'SUCCEEDED', output_snapshot = jsonb_build_object('shotIds', jsonb_build_array(?,?,?)) where id = ?",
+            a, b, draft, run.get("breakdown_task_id", Long.class));
+        mvc.perform(post(confirm).with(user(alice)).with(csrf())).andExpect(status().isOk())
+            .andExpect(jsonPath("$.messages[0].workflow.batches[0].progress.total").value(2));
+        var workflowBatch = batches.list(alice.id(), episode, GenerationBatch.Type.IMAGE).getFirst();
+        assertThat(workflowBatch.members()).extracting(GenerationBatch.Member::shotId).containsExactly(Long.toString(b), Long.toString(draft));
+        var unrelatedBatch = submit("later-unrelated", GenerationBatch.Type.IMAGE, List.of(a), false);
+        long retryable = Long.parseLong(workflowBatch.members().getFirst().taskId());
+        long unknown = Long.parseLong(workflowBatch.members().getLast().taskId());
+        long unrelated = Long.parseLong(unrelatedBatch.members().getFirst().taskId());
+        db.execute("update task set status = 'FAILED', retryable = true, attempt_count = 1 where id in (?, ?)", retryable, unrelated);
+        db.execute("update task set status = 'UNKNOWN' where id = ?", unknown);
+        mvc.perform(multipart(path + "/messages").param("requestKey", UUID.randomUUID().toString())
+                .param("episodeId", Long.toString(episode)).param("instruction", "只重试失败的").with(user(alice)).with(csrf()))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.messages[1].result.message").value("已重新排队 1 个失败任务"));
+        assertThat(db.fetch("select status from task where id in (?,?,?) order by id", retryable, unknown, unrelated)
+            .getValues(0, String.class)).containsExactly("QUEUED", "UNKNOWN", "FAILED");
     }
     @Test void concurrentSameRequestHasOneBatchAndOneTaskPerEligibleMember() throws Exception {
         try(var pool=Executors.newVirtualThreadPerTaskExecutor()) {
