@@ -2295,6 +2295,28 @@
         },
         "type": "object"
       },
+      "SubmitVideo": {
+        "properties": {
+          "expectedFirstFrames": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "以镜头 ID 为键、预期首帧图片 ID 为值。",
+            "minProperties": 1,
+            "type": "object"
+          },
+          "requestKey": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedFirstFrames",
+          "requestKey"
+        ],
+        "type": "object"
+      },
       "Task": {
         "properties": {
           "attempts": {
@@ -4291,6 +4313,61 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Submit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationBatch"
+                }
+              }
+            },
+            "description": "Accepted"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "batch-controller"
+        ]
+      }
+    },
+    "/api/episodes/{episodeId}/generation-batches/video": {
+      "post": {
+        "operationId": "submitVideo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episodeId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitVideo"
               }
             }
           },

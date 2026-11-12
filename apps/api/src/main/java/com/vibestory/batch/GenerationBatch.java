@@ -24,14 +24,26 @@ public class GenerationBatch {
     @io.swagger.v3.oas.annotations.media.Schema(name="GenerationBatch")
     public record View(String id,String episodeId,String type,String requestKey,String state,Progress progress,List<Member> members) {}
     private record Identity(Type type,List<Long> shotIds,boolean regenerate) {}
+    private record PinnedIdentity(Identity batch, Map<Long, Long> expectedFirstFrames) {}
 
     @Transactional
     public View submit(long userId,long episodeId,Type type,String requestKey,List<Long> requested,boolean regenerate) {
+        return submit(userId, episodeId, type, requestKey, requested, regenerate, Map.of());
+    }
+
+    @Transactional
+    public View submit(long userId, long episodeId, Type type, String requestKey, List<Long> requested, boolean regenerate,
+                       Map<Long, Long> expectedFirstFrames) {
         if(type==null || requestKey==null || requestKey.isBlank() || requestKey.length()>128 || requested==null || requested.isEmpty() || requested.size()>200
             || requested.stream().anyMatch(id->id==null || id<1) || new HashSet<>(requested).size()!=requested.size()) throw ApiException.badRequest("选择 1 至 200 个不同镜头并提供请求标识");
+        if (!expectedFirstFrames.isEmpty() && (type != Type.VIDEO || !expectedFirstFrames.keySet().equals(Set.copyOf(requested))
+            || expectedFirstFrames.values().stream().anyMatch(id -> id == null || id < 1)))
+            throw ApiException.badRequest("预期首帧仅用于视频，并须为每个所选镜头提供有效的图片 ID");
         long projectId=scope.lockEpisode(userId,episodeId);
         var ids=requested.stream().sorted().toList();
-        var signature=signatures.of(new Identity(type,ids,regenerate)).signature();
+        var identity = new Identity(type, ids, regenerate);
+        // Preserve the stored signature for requests from existing callers.
+        var signature = signatures.of(expectedFirstFrames.isEmpty() ? identity : new PinnedIdentity(identity, expectedFirstFrames)).signature();
         var old=db.fetchOne("select id,request_signature from generation_batch where user_id=? and episode_id=? and request_key=?",userId,episodeId,requestKey);
         if(old!=null) {
             if(!old.get("request_signature",String.class).equals(signature)) throw ApiException.conflict("同一批次请求标识不能用于不同内容");
@@ -46,7 +58,8 @@ public class GenerationBatch {
             String outcome="ACCEPTED",reason=null;Long taskId=null;
             try {
                 String nonce=regenerate?requestKey:null;
-                var submission=type==Type.IMAGE?images.submitBatchMember(userId,id,nonce,true):videos.submitBatchMember(userId,id,nonce,true);
+                var submission = type == Type.IMAGE ? images.submitBatchMember(userId, id, nonce, true)
+                    : videos.submitBatchMember(userId, id, nonce, true, expectedFirstFrames.get(id));
                 taskId=Long.parseLong(submission.taskId());
                 if(before.contains(taskId)) outcome="REUSED";
             } catch(ApiException blocked) {

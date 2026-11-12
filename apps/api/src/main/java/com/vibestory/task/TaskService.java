@@ -61,10 +61,18 @@ public class TaskService {
 
     @Transactional(noRollbackFor = ApiException.class)
     public Submission submitBatchMember(long userId,long shotId,String nonce,boolean rejectConflictingActive) {
+        return submitBatchMember(userId, shotId, nonce, rejectConflictingActive, null);
+    }
+
+    @Transactional(noRollbackFor = ApiException.class)
+    public Submission submitBatchMember(long userId, long shotId, String nonce, boolean rejectConflictingActive,
+                                        Long expectedFirstFrameId) {
         Record shot = scope.shot(userId, shotId);
         if (!"CONFIRMED".equals(shot.get("status", String.class))) throw ApiException.conflict("镜头确认后才能生成视频");
         Record image = db.fetchOne("select * from shot_image where shot_id = ? and selected and status = 'READY'", shotId);
         if (image == null) throw ApiException.conflict("请先选定一张已就绪的分镜图");
+        if (expectedFirstFrameId != null && !expectedFirstFrameId.equals(image.get("id", Long.class)))
+            throw ApiException.conflict("当前选中的首帧已变化，请重新读取并确认");
         if (nonce!=null && (nonce.isBlank() || nonce.length()>128)) throw ApiException.badRequest("重新生成标识无效");
         String prompt=shot.get("description",String.class);
         boolean real=videoConfig.provider().equals("minimax");

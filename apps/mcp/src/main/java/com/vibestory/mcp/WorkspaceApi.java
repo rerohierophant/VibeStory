@@ -56,10 +56,14 @@ final class WorkspaceApi {
         }
     }
 
-    synchronized JsonNode post(String path, Map<String, ?> body) {
+    JsonNode post(String path, Map<String, ?> body) { return write("POST", path, body); }
+
+    JsonNode put(String path, Map<String, ?> body) { return write("PUT", path, body); }
+
+    private synchronized JsonNode write(String method, String path, Map<String, ?> body) {
         ensureLogin();
         try {
-            return request("POST", path, body, session);
+            return request(method, path, body, session);
         } catch (Failure failure) {
             if (failure.status() == 401 || failure.status() == 403) session = null;
             throw failure;

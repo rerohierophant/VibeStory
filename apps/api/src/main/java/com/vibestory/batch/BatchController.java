@@ -6,6 +6,8 @@ import com.vibestory.project.ProjectAccess;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +23,12 @@ public class BatchController {
     public BatchController(GenerationBatch batches, ProjectAccess access, EpisodeWorkflow workflow) { this.batches=batches; this.access = access; this.workflow = workflow; }
     public record Submit(@NotNull GenerationBatch.Type type,@NotBlank @Size(max=128) String requestKey,
                          @NotEmpty @Size(max=200) List<@NotNull @Pattern(regexp="[1-9][0-9]{0,17}") String> shotIds,boolean regenerate) {}
+
+    public record SubmitVideo(@NotBlank @Size(max=128) String requestKey,
+        @io.swagger.v3.oas.annotations.media.Schema(description = "以镜头 ID 为键、预期首帧图片 ID 为值。")
+        @NotEmpty @Size(max=200) Map<@Pattern(regexp="[1-9][0-9]{0,17}") String,
+            @NotNull @Pattern(regexp="[1-9][0-9]{0,17}") String> expectedFirstFrames) {}
+
     @PostMapping("/api/episodes/{episodeId}/generation-batches")
     @Transactional
     @ResponseStatus(HttpStatus.ACCEPTED)
@@ -31,6 +39,20 @@ public class BatchController {
         access.recordBatch(grant, batch.id());
         return batch;
     }
+
+    @PostMapping("/api/episodes/{episodeId}/generation-batches/video")
+    @Transactional
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public GenerationBatch.View submitVideo(@AuthenticationPrincipal Viewer viewer, @PathVariable long episodeId, @Valid @RequestBody SubmitVideo body) {
+        var grant = access.edit(viewer.id(), EPISODE, episodeId);
+        Map<Long, Long> frames = body.expectedFirstFrames().entrySet().stream()
+            .collect(Collectors.toMap(entry -> Long.parseLong(entry.getKey()), entry -> Long.parseLong(entry.getValue())));
+        var batch = workflow.generateIndependentBatch(grant.partitionUserId(), episodeId, GenerationBatch.Type.VIDEO,
+            body.requestKey(), List.copyOf(frames.keySet()), false, frames);
+        access.recordBatch(grant, batch.id());
+        return batch;
+    }
+
     @GetMapping("/api/episodes/{episodeId}/generation-batches")
     public List<GenerationBatch.View> list(@AuthenticationPrincipal Viewer viewer,@PathVariable long episodeId,@RequestParam GenerationBatch.Type type) { return batches.list(access.read(viewer.id(), EPISODE, episodeId).partitionUserId(), episodeId, type); }
     @GetMapping("/api/generation-batches/{id}")

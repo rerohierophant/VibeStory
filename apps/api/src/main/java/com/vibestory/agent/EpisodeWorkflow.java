@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
@@ -147,7 +148,14 @@ public class EpisodeWorkflow {
     @Transactional
     public GenerationBatch.View generateIndependentBatch(long user, long episode, GenerationBatch.Type type,
                                                           String key, List<Long> ids, boolean regenerate) {
-        var batch = batches.submit(user, episode, type, key, ids, regenerate);
+        return generateIndependentBatch(user, episode, type, key, ids, regenerate, Map.of());
+    }
+
+    @Transactional
+    public GenerationBatch.View generateIndependentBatch(long user, long episode, GenerationBatch.Type type,
+                                                          String key, List<Long> ids, boolean regenerate,
+                                                          Map<Long, Long> expectedFirstFrames) {
+        var batch = batches.submit(user, episode, type, key, ids, regenerate, expectedFirstFrames);
         if (type == GenerationBatch.Type.IMAGE && !regenerate) linkImageBatch(user, episode, batch);
         return batch;
     }

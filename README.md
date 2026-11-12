@@ -65,9 +65,11 @@ npm run dev --prefix apps/web
 <details>
 <summary>在 Codex 中使用本地 MCP</summary>
 
-先运行 `scripts/java21.sh :mcp:installDist` 并启动上面的 Mock API。在 Codex 中打开并信任仓库，再重新开启会话。[项目配置](.codex/config.toml)通过本地 STDIO 注册 `vibestory`，写工具使用审批模式。MCP 默认使用本机 `.env` 的种子账号和 `PORT`，也可通过 `VIBESTORY_MCP_EMAIL`、`VIBESTORY_MCP_PASSWORD`、`VIBESTORY_MCP_URL` 覆盖。
+用当前源码启动上面的 Mock API，运行 `scripts/java21.sh :mcp:installDist`。在 Codex 中打开并信任仓库，再重新开启会话。[项目配置](.codex/config.toml)通过本地 STDIO 注册 `vibestory`，写工具使用审批模式。MCP 默认使用本机 `.env` 的种子账号和 `PORT`，也可通过 `VIBESTORY_MCP_EMAIL`、`VIBESTORY_MCP_PASSWORD`、`VIBESTORY_MCP_URL` 覆盖。
 
-例如发送「把《雨巷》第 2 集已保存的正文拆成镜头，完成后列出来」。工具支持查看项目与镜头、提交拆镜、预览并确认单镜改写、提交和查询 Mock 出图批次。
+MCP 提供 17 个工具。可以读取已有分集、按正文版本保存修改、提交拆镜、预览和应用单镜改动、确认镜头，以及提交和查询 Mock 图片或视频批次。可按分集找回最近的批次，也可查看单镜的候选图、图片来源和视频使用的首帧。
+
+例如发送「查《雨巷》第 2 集第 3 镜的候选图和当前首帧」。用户明确选图后，可指定这张图提交视频。提交前若首帧已变化，该镜会在批次里显示阻塞原因。媒体链接为工作台的鉴权 API 路径，可在已登录的工作台查看。
 
 </details>
 

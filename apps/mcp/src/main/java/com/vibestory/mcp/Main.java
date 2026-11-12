@@ -18,9 +18,10 @@ public final class Main {
             McpServer.sync(transport)
                 .serverInfo("vibestory", "0.1.0")
                 .instructions("""
-                    在 VibeStory 中创建和编辑分镜。先用 list_projects 找到分集 ID，再提交拆镜。生成是异步的，使用返回的任务或批次 ID 查询进度。
+                    先用 list_projects 找到分集 ID。保存用户确认的正文时，从 get_episode 获取当前 storyRevision，再调用 save_episode_story。
                     改镜先调用 preview_shot_edit，展示差异并等用户确认，再用同一分集 ID 和提案 ID 调用 apply_shot_edit。
-                    确认整集镜头或提交出图前，请核对用户授权的范围。对同一改镜或出图请求重试时复用原 request_key。
+                    用 get_shot_media 查询候选图。用户指定首帧后可调用 select_shot_image。提交视频时传入每个镜头及其经确认的首帧 ID。
+                    确认整集镜头或提交生成前，请核对用户授权的范围。生成是异步的，使用任务 ID 或批次 ID 查询进度。同一改镜或批次请求重试时复用原 request_key。
                     """)
                 .tools(new StoryboardTools(json, api).tools())
                 .build();

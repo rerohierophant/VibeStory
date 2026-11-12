@@ -500,6 +500,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/episodes/{episodeId}/generation-batches/video": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["submitVideo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/episodes/{episodeId}/shot-edit-proposals": {
         parameters: {
             query?: never;
@@ -2225,6 +2241,13 @@ export interface components {
         SubmitBreakdown: {
             replaceExisting?: boolean;
         };
+        SubmitVideo: {
+            /** @description 以镜头 ID 为键、预期首帧图片 ID 为值。 */
+            expectedFirstFrames: {
+                [key: string]: string;
+            };
+            requestKey: string;
+        };
         Task: {
             /** Format: int32 */
             attempts?: number;
@@ -3227,6 +3250,35 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["Submit"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["GenerationBatch"];
+                };
+            };
+        };
+    };
+    submitVideo: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Fetch /api/auth/csrf with the same session cookie; refresh after login. */
+                "X-CSRF-TOKEN": string;
+            };
+            path: {
+                episodeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitVideo"];
             };
         };
         responses: {

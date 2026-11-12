@@ -116,10 +116,7 @@ def main():
             assert {runtime_config[key]["provider"] for key in ("text", "image", "video")} == {"mock"}
             project = api.request("POST", "/api/projects", {"name": "MCP 雨巷", "visualType": "realistic"}, expected=201)
             episode = api.request("POST", f"/api/projects/{project['id']}/episodes", {}, expected=201)
-            episode_id = episode["id"]
-            api.request("PUT", f"/api/episodes/{episode_id}/story", {
-                "story": "沈夜走进雨夜街道，抬头望向便利店。\n便利店的店员听见脚步声，起身开门。\n沈夜说：「先关门。外面有人在找我们。」"})
-            verify(runtime, java_env, origin, email, other, password, episode_id, api)
+            verify(runtime, java_env, origin, email, other, password, episode["id"], api)
         finally:
             process.terminate()
             try:
@@ -133,16 +130,26 @@ def verify(runtime, java_env, origin, email, other, password, episode_id, api):
     target = {"episode_id": episode_id}
     with client(runtime, java_env, origin, email, password, "owner") as mcp:
         tools = {tool["name"]: tool for tool in mcp.request("tools/list", {})["tools"]}
-        assert len(tools) == 10
-        assert tools["list_shots"]["annotations"]["readOnlyHint"]
-        assert not tools["apply_shot_edit"]["annotations"]["readOnlyHint"]
+        assert len(tools) == 17
+        assert {name for name, tool in tools.items() if tool["annotations"]["readOnlyHint"]} == {
+            "list_projects", "get_episode", "list_shots", "get_shot_media", "get_task",
+            "get_image_batch", "get_generation_batch", "list_generation_batches",
+        }
         projects = mcp.call("list_projects", {"query": "雨巷"})
         assert projects["projects"][0]["episodes"][0]["id"] == episode_id
         assert "story" not in projects["projects"][0]["episodes"][0]
+        episode = mcp.call("get_episode", target)
+        story = "沈夜走进雨夜街道，抬头望向便利店。\n便利店的店员听见脚步声，起身开门。\n沈夜说：「先关门。外面有人在找我们。」"
+        draft = {**target, "expected_story_revision": episode["storyRevision"], "story": story}
+        saved = mcp.call("save_episode_story", draft)
+        assert saved["story"] == story and saved["storyRevision"] > episode["storyRevision"]
+        mcp.call("save_episode_story", {**draft, "story": "过期编辑"}, error=409)
+        assert mcp.call("get_episode", target) == saved
         task_id = mcp.call("submit_breakdown", target)["taskId"]
         until(lambda: mcp.call("get_task", {"task_id": task_id})["ready"])
         page = mcp.call("list_shots", {**target, "limit": 2})
         assert page["total"] == 3 and page["next_offset"] == 2
+        first = page["shots"][0]
         third = mcp.call("list_shots", {**target, "offset": 2})["shots"][0]
         mcp.call("submit_breakdown", target, error=409)
         preview = mcp.call("preview_shot_edit", {**target, "request_key": str(uuid.uuid4()),
@@ -151,7 +158,10 @@ def verify(runtime, java_env, origin, email, other, password, episode_id, api):
         assert preview["state"] == "PENDING" and preview["changes"]
         assert mcp.call("list_shots", {**target, "offset": 2})["shots"][0] == third
         with client(runtime, java_env, origin, other, password, "outsider") as outsider:
+            outsider.call("get_episode", target, error=404)
+            outsider.call("save_episode_story", draft, error=404)
             outsider.call("list_shots", target, error=404)
+            outsider.call("get_shot_media", {"shot_id": third["id"]}, error=404)
             outsider.call("get_task", {"task_id": task_id}, error=404)
             outsider.call("apply_shot_edit", proposal, error=404)
         applied = mcp.call("apply_shot_edit", proposal)
@@ -159,12 +169,70 @@ def verify(runtime, java_env, origin, email, other, password, episode_id, api):
         assert mcp.call("apply_shot_edit", proposal) == applied
         assert api.request("GET", "/api/shots/" + third["id"])["shotSize"] == "近景"
         assert mcp.call("confirm_all_shots", target)["confirmed_count"] == 3
-        request = {**target, "request_key": str(uuid.uuid4()), "shot_ids": [third["id"]]}
+        request = {**target, "request_key": str(uuid.uuid4()), "shot_ids": [first["id"], third["id"]]}
         batch_id = mcp.call("submit_image_batch", request)["id"]
         assert mcp.call("submit_image_batch", request)["id"] == batch_id
-        until(lambda: mcp.call("get_image_batch", {"batch_id": batch_id})["progress"]["succeeded"] == 1)
-        assert mcp.call("list_shots", {**target, "offset": 2})["shots"][0]["selectedImageId"]
-    print("PASS: stdio discovery, project lookup, breakdown, edit preview/apply, cross-account isolation, and Mock image batch.", flush=True)
+        batch_ref = {"batch_id": batch_id}
+        until(lambda: mcp.call("get_image_batch", batch_ref)["progress"]["succeeded"] == 2)
+        assert mcp.call("get_generation_batch", batch_ref) == mcp.call("get_image_batch", batch_ref)
+        video_id, frame = verify_video(mcp, api, target, first["id"], third["id"])
+    with client(runtime, java_env, origin, email, password, "reopened") as mcp:
+        latest = mcp.call("list_generation_batches", {**target, "type": "VIDEO"})["batches"][0]
+        assert latest["id"] == video_id and latest["progress"]["succeeded"] == 1
+        assert mcp.call("list_generation_batches", {**target, "type": "IMAGE"})["batches"][0]["id"] == batch_id
+        assert mcp.call("get_shot_media", {"shot_id": third["id"]})["video"]["basedOn"] == frame
+    with client(runtime, java_env, origin, other, password, "media-outsider") as mcp:
+        shot = {"shot_id": third["id"], "image_id": frame}
+        mcp.call("select_shot_image", shot, error=404)
+        mcp.call("submit_video_batch", {**target, "request_key": str(uuid.uuid4()), "shots": [shot]}, error=404)
+        mcp.call("get_generation_batch", {"batch_id": video_id}, error=404)
+    print("PASS: 17 stdio tools, story version checks, breakdown and shot edit, scope checks, Mock image/video batches, and frozen first frame.", flush=True)
+
+
+def verify_video(mcp, api, episode, first_shot, third_shot):
+    api.request("POST", f"/api/episodes/{episode['episode_id']}/generation-batches/video",
+                {"requestKey": str(uuid.uuid4())}, expected=400)
+    shot = {"shot_id": third_shot}
+    original = mcp.call("get_shot_media", shot)
+    old_frame = original["selectedImageId"]
+    candidate = original["candidates"]["images"][0]
+    assert candidate["id"] == old_frame and "scene" in candidate["inputSnapshot"]
+    assert candidate["url"] == f"/api/shot-images/{old_frame}/image"
+
+    # The workbench creates a second candidate while the original remains selected.
+    task = api.request("POST", f"/api/shots/{third_shot}/image-tasks", {"regenerateNonce": str(uuid.uuid4())}, expected=202)
+    until(lambda: mcp.call("get_task", {"task_id": task["taskId"]})["ready"])
+    media = mcp.call("get_shot_media", {**shot, "limit": 1})
+    assert media["selectedImageId"] == old_frame and media["candidates"]["next_offset"] == 1
+    page_two = mcp.call("get_shot_media", {**shot, "offset": 1})["candidates"]
+    new_frame, = {media["candidates"]["images"][0]["id"], page_two["images"][0]["id"]} - {old_frame}
+    mcp.call("select_shot_image", {"shot_id": first_shot, "image_id": new_frame}, error=404)
+    assert mcp.call("select_shot_image", {**shot, "image_id": new_frame})["selectedImageId"] == new_frame
+    assert api.request("GET", f"/api/shots/{third_shot}")["selectedImageId"] == new_frame
+
+    first_frame = mcp.call("get_shot_media", {"shot_id": first_shot})["selectedImageId"]
+    first = {"shot_id": first_shot, "image_id": first_frame}
+    stale = {**shot, "image_id": old_frame}
+    valid = {**shot, "image_id": new_frame}
+    mixed = {**episode, "request_key": str(uuid.uuid4()), "shots": [first, stale]}
+    partial = mcp.call("submit_video_batch", mixed)
+    assert partial["progress"]["accepted"] == 1 and partial["progress"]["blocked"] == 1
+    blocked = next(member for member in partial["members"] if member["shotId"] == third_shot)
+    assert blocked["outcome"] == "blocked" and not blocked.get("taskId") and "首帧已变化" in blocked["reason"]
+    assert mcp.call("submit_video_batch", {**mixed, "shots": [stale, first]})["id"] == partial["id"]
+    mcp.call("submit_video_batch", {**mixed, "shots": [first, valid]}, error=409)
+
+    request = {**episode, "request_key": str(uuid.uuid4()), "shots": [valid]}
+    video = mcp.call("submit_video_batch", request)
+    assert video["progress"]["accepted"] == 1
+    api.request("PUT", f"/api/shots/{third_shot}/selected-image", {"imageId": int(old_frame)}, expected=204)
+    assert mcp.call("submit_video_batch", request)["id"] == video["id"]
+    ref = {"batch_id": video["id"]}
+    until(lambda: mcp.call("get_generation_batch", ref)["progress"]["succeeded"] == 1)
+    media = mcp.call("get_shot_media", shot)
+    assert media["selectedImageId"] == old_frame and media["video"]["basedOn"] == new_frame
+    assert mcp.call("get_task", {"task_id": video["members"][0]["taskId"]})["basedOn"] == new_frame
+    return video["id"], new_frame
 
 
 if __name__ == "__main__":

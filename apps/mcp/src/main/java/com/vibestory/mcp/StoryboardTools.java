@@ -20,6 +20,11 @@ final class StoryboardTools {
     private record Field(String name, Map<String, Object> schema, boolean required) {}
     private static final Map<String, Object> ID = Map.of("type", "string", "pattern", "^[1-9][0-9]{0,17}$");
     private static final Field EPISODE = idField("episode_id", "VibeStory 分集 ID", true);
+    private static final Field SHOT = idField("shot_id", "VibeStory 镜头 ID", true);
+    private static final Field IMAGE = idField("image_id", "镜头下的候选图 ID", true);
+    private static final Field BATCH = idField("batch_id", "批次提交返回的 ID", true);
+    private static final Field BATCH_TYPE = new Field("type", Map.of("type", "string", "enum", List.of("IMAGE", "VIDEO")), true);
+    private static final int STORY_LIMIT = 1024 * 1024;
     private static final Field PROPOSAL = idField("proposal_id", "改镜预览返回的提案 ID", true);
     private static final Field REQUEST_KEY = new Field("request_key",
         Map.of("type", "string", "format", "uuid", "description", "调用方为本次操作生成的 UUID，重试时复用"), true);
@@ -40,8 +45,18 @@ final class StoryboardTools {
             tool("list_projects", "查找个人项目及分集 ID。提供 team_id 时查询该团队项目。", true, false, true,
                 this::projects, idField("team_id", "可选的团队 ID", false),
                 textField("query", "按项目名筛选", 120, false), OFFSET, LIMIT),
+            tool("get_episode", "读取指定分集的标题、正文、正文版本和拆镜状态。", true, false, true,
+                args -> episodeView(api.get(episode(args))), EPISODE),
+            tool("save_episode_story", "将用户确认的完整正文保存到已有分集。使用 get_episode 返回的 storyRevision。发生冲突时重新读取并核对正文。",
+                false, true, false, this::saveStory, EPISODE, textField("story", "完整的分集正文", STORY_LIMIT, true),
+                new Field("expected_story_revision", Map.of("type", "integer", "minimum", 0,
+                    "description", "get_episode 返回的 storyRevision"), true)),
             tool("list_shots", "按镜号读取分镜，返回镜头 ID、描述、台词、景别、确认状态和当前选图。结果分页。",
                 true, false, true, this::shots, EPISODE, OFFSET, LIMIT),
+            tool("get_shot_media", "按镜头 ID 查询分镜图候选及来源、当前选图、视频状态和实际首帧。候选图分页。",
+                true, false, true, this::shotMedia, SHOT, OFFSET, LIMIT),
+            tool("select_shot_image", "将用户指定的就绪候选图设为该镜头当前首帧。", false, false, false,
+                this::selectImage, SHOT, IMAGE),
             tool("submit_breakdown", "将分集已保存的正文拆成镜头。保护已有镜头，返回异步任务 ID。", false, false, false,
                 args -> {
                     String path = episode(args) + "/breakdowns";
@@ -77,10 +92,30 @@ final class StoryboardTools {
                     return api.post(path, payload);
                 }, EPISODE, REQUEST_KEY, new Field("shot_ids", Map.of("type", "array", "items", ID,
                     "minItems", 1, "maxItems", 200, "uniqueItems", true), true)),
-            tool("get_image_batch", "按批次 ID 查询分镜图批次进度和成员。", true, false, true,
-                args -> api.get("/api/generation-batches/" + id(args, "batch_id")),
-                idField("batch_id", "批次提交返回的 ID", true))
+            tool("get_image_batch", "按批次 ID 查询分镜图批次进度和成员。", true, false, true, this::getBatch, BATCH),
+            tool("submit_video_batch", "为用户确认的镜头及首帧提交 Mock 视频批次。首帧变化时该镜头会被阻塞，结果包含逐镜原因。",
+                false, false, true, this::submitVideoBatch, EPISODE, REQUEST_KEY,
+                new Field("shots", Map.of("type", "array", "minItems", 1, "maxItems", 200,
+                    "items", Map.of("type", "object", "properties", Map.of("shot_id", ID, "image_id", ID),
+                        "required", List.of("shot_id", "image_id"), "additionalProperties", false)), true)),
+            tool("get_generation_batch", "按批次 ID 查询分镜图或视频批次的进度、成员和阻塞原因。",
+                true, false, true, this::getBatch, BATCH),
+            tool("list_generation_batches", "按分集和类型查最近 10 个批次的摘要。用 get_generation_batch 查看逐镜结果。",
+                true, false, true, this::listBatches, EPISODE, BATCH_TYPE)
         );
+    }
+
+    private ObjectNode episodeView(JsonNode episode) {
+        return pick(episode, "id", "index", "title", "summary", "story", "storyRevision", "breakdown");
+    }
+
+    private JsonNode saveStory(Map<String, Object> args) {
+        if (!(args.get("story") instanceof String story) || story.length() > STORY_LIMIT)
+            throw new IllegalArgumentException("story 必须是长度不超过 " + STORY_LIMIT + " 的文本。");
+        var revision = args.get("expected_story_revision");
+        if (!(revision instanceof Integer || revision instanceof Long) || ((Number) revision).longValue() < 0)
+            throw new IllegalArgumentException("expected_story_revision 必须是非负整数。");
+        return episodeView(api.put(episode(args) + "/story", Map.of("story", story, "expectedStoryRevision", revision)));
     }
 
     private JsonNode projects(Map<String, Object> args) {
@@ -102,6 +137,53 @@ final class StoryboardTools {
         return page("shots", api.get(episode(args) + "/shots"), args, shot ->
             pick(shot, "id", "seq", "status", "sceneName", "description", "dialogue", "shotSize", "cameraMove",
                 "durationMs", "version", "imageState", "selectedImageId"));
+    }
+
+    private JsonNode shotMedia(Map<String, Object> args) {
+        var shot = api.get("/api/shots/" + id(args, "shot_id"));
+        var result = pick(shot, "id", "episodeId", "seq", "status", "selectedImageId", "imageState", "imageTaskId", "imageError", "video");
+        result.set("candidates", page("images", shot.path("images"), args,
+            image -> pick(image, "id", "label", "createdAt", "inputSnapshot", "url")));
+        return result;
+    }
+
+    private JsonNode selectImage(Map<String, Object> args) {
+        String shotId = id(args, "shot_id");
+        String imageId = id(args, "image_id");
+        api.put("/api/shots/" + shotId + "/selected-image", Map.of("imageId", Long.parseLong(imageId)));
+        return json.createObjectNode().put("shotId", shotId).put("selectedImageId", imageId);
+    }
+
+    private JsonNode submitVideoBatch(Map<String, Object> args) {
+        if (!(args.get("shots") instanceof List<?> shots) || shots.isEmpty() || shots.size() > 200)
+            throw new IllegalArgumentException("shots 必须包含 1 到 200 个镜头及其首帧。");
+        var frames = new LinkedHashMap<String, String>();
+        for (var item : shots) {
+            if (!(item instanceof Map<?, ?> shot) || shot.size() != 2)
+                throw new IllegalArgumentException("shots 的每一项必须包含 shot_id 和 image_id。");
+            String shotId = idValue(shot.get("shot_id"), "shot_id");
+            String imageId = idValue(shot.get("image_id"), "image_id");
+            if (frames.putIfAbsent(shotId, imageId) != null)
+                throw new IllegalArgumentException("shots 中的镜头 ID 必须不同。");
+        }
+        String path = episode(args) + "/generation-batches/video";
+        var payload = Map.of("requestKey", requestKey(args), "expectedFirstFrames", frames);
+        api.requireMock("video");
+        return api.post(path, payload);
+    }
+
+    private JsonNode getBatch(Map<String, Object> args) {
+        return api.get("/api/generation-batches/" + id(args, "batch_id"));
+    }
+
+    private JsonNode listBatches(Map<String, Object> args) {
+        String type = string(args, "type", 5);
+        if (!type.equals("IMAGE") && !type.equals("VIDEO")) throw new IllegalArgumentException("type 必须是 IMAGE 或 VIDEO。");
+        var result = json.createObjectNode();
+        var batches = result.putArray("batches");
+        for (var batch : api.get(episode(args) + "/generation-batches?type=" + type))
+            batches.add(pick(batch, "id", "episodeId", "type", "state", "progress"));
+        return result;
     }
 
     private JsonNode page(String key, JsonNode values, Map<String, Object> args, Function<JsonNode, JsonNode> view) {
