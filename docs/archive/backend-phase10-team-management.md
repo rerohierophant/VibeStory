@@ -1,5 +1,7 @@
 # 阶段十 · 团队管理与项目协作
 
+> 历史记录。当前规格和使用方式见[项目文档](../../README.md#验证与文档)。
+
 **状态：首版已实现（2026-11-04）。** 团队管理是首页左栏的独立入口，排在「设置」正上方。首版支持创建团队、站内邀请、角色管理和共享项目。个人项目继续归原账号，已有数据不会自动共享。
 
 ## 页面与操作流程
@@ -31,7 +33,7 @@
 
 ## Java 后端设计
 
-原有子表外键、Worker 和媒体路径使用项目的 `user_id`。本阶段把「谁在操作」与「资源归哪里」分开。HTTP 入口用 [ProjectAccess](../apps/api/src/main/java/com/vibestory/project/ProjectAccess.java) 从真实资源回查项目，再校验当前成员权限。业务服务和 Worker 继续用原项目标识校验归属。
+原有子表外键、Worker 和媒体路径使用项目的 `user_id`。本阶段把「谁在操作」与「资源归哪里」分开。HTTP 入口用 [ProjectAccess](../../apps/api/src/main/java/com/vibestory/project/ProjectAccess.java) 从真实资源回查项目，再校验当前成员权限。业务服务和 Worker 继续用原项目标识校验归属。
 
 | 数据 | 设计 |
 | --- | --- |
@@ -72,7 +74,7 @@ OpenAPI 由 springdoc 导出，前端类型由 `packages/contracts` 生成。项
 | 10B · 项目协作 | 团队建项目，成员按权限进入现有工作区；覆盖项目、资产、版本、任务、媒体及拒绝访问的入口，保留个人项目兼容；通过权限与并发验收后开放共享项目入口 |
 | 10C · 验收收尾 | 导出契约、完成双账号 Chrome 演示和 Mock 生成，记录实际结果及限制 |
 
-验收使用隔离 PostgreSQL 16 和 Chrome，生成全部使用 Mock。团队专项后端测试位于 [TeamIntegrationTest](../apps/api/src/test/java/com/vibestory/task/TeamIntegrationTest.java)，浏览器双账号流程位于 [workspace.spec.ts](../apps/web/tests/workspace.spec.ts)。已覆盖邀请接受竞争、角色与越权、旧版本冲突、任务复用、项目创建者被移除后任务继续、以及图像与视频 Range 的访问变化。
+验收使用隔离 PostgreSQL 16 和 Chrome，生成全部使用 Mock。团队专项后端测试位于 [TeamIntegrationTest](../../apps/api/src/test/java/com/vibestory/task/TeamIntegrationTest.java)，浏览器双账号流程位于 [workspace.spec.ts](../../apps/web/tests/workspace.spec.ts)。已覆盖邀请接受竞争、角色与越权、旧版本冲突、任务复用、项目创建者被移除后任务继续、以及图像与视频 Range 的访问变化。
 
 数据库模式整套回归通过：148 项后端、17 项组件、12 项 Chrome，以及 OpenAPI 导出、前端构建和 HTTP 崩溃恢复。摘要位于 `data/verification/phase6-13f49874d7/summary.json`。
 

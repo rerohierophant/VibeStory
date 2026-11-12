@@ -1,5 +1,7 @@
 # 阶段十二 · 分集 Agent 工作流
 
+> 历史记录。当前规格和使用方式见[项目文档](../../README.md#验证与文档)。
+
 ## 三层渐进上下文压缩（已实现，Mock 验收通过）
 
 按用户选择采用「大工具结果持久化 → 旧工具结果裁剪 → 全量压缩」，不增加按消息数量丢弃中间历史的 History Snip。参考教程的机制分类，不把教学实现描述为 Claude Code 的稳定内部实现。[参考源码](https://github.com/shareAI-lab/learn-claude-code/blob/main/s08_context_compact/code.py)
@@ -39,9 +41,9 @@
 
 新增 13 项专项（5 项投影、8 项真实 PostgreSQL 集成）覆盖：UTF-8 分页与原始哈希、单项 / 同批外置、旧正文裁剪但不删消息、整批工具配对、当前要求保留、中段唯一决定与产物引用、完整来源分块覆盖、摘要检查点恢复、非法摘要失败、真实请求丢失模拟为 UNKNOWN、跨账号和主子作用域隔离，以及原有业务回执不重复写入。
 
-三层压力样本主动构造了 8 组长助手记录和长工具结果，并调低触发预算。实际主请求从 **89,077 → 20,613 字节**，触发 10 项结果外置、7 项旧结果裁剪、1 次完整压缩；摘要以 21 个连续原文块完成。测试拼接所有摘要输入块并核对全量来源哈希，检查原始消息前缀未变、当前要求 / 中段决定 / 产物引用仍存在、工具协议配对正确。这是人工压力样本的机制验证，不代表实际创作任务的 token 节约、语义摘要质量或全链路成本；Mock 摘要器按预置规则保留验收事实，真实文本质量仍未评测。[压力样本记录](../data/verification/phase6-4ae9a808d6/agent-context.json)
+三层压力样本主动构造了 8 组长助手记录和长工具结果，并调低触发预算。实际主请求从 **89,077 → 20,613 字节**，触发 10 项结果外置、7 项旧结果裁剪、1 次完整压缩；摘要以 21 个连续原文块完成。测试拼接所有摘要输入块并核对全量来源哈希，检查原始消息前缀未变、当前要求 / 中段决定 / 产物引用仍存在、工具协议配对正确。这是人工压力样本的机制验证，不代表实际创作任务的 token 节约、语义摘要质量或全链路成本；Mock 摘要器按预置规则保留验收事实，真实文本质量仍未评测。压力样本记录：`data/verification/phase6-4ae9a808d6/agent-context.json`
 
-JDK 21、本机独立 PostgreSQL 16、数据库派发模式执行 `scripts/verify-all-mock.sh`：**181 项后端、17 项组件、16 项 Chrome 全部通过**，无失败、跳过或 flaky。OpenAPI / 类型生成、前端构建、HTTP 崩溃恢复与 diff 检查通过。新增 Chrome 用例在默认 16 KiB 阈值下，从页面提交长剧本，核对实际 read_tool_result 分页轨迹、完整脚本正文与刷新恢复。页面与对话的既有交替执行链路继续通过。文本、图片、视频均为 Mock，未调用真实供应商。[本轮完整验收](../data/verification/phase6-4ae9a808d6/summary.json) · [Chrome 记录](../data/verification/web-d4ddeec7c8/browser/results.json)
+JDK 21、本机独立 PostgreSQL 16、数据库派发模式执行 `scripts/verify-all-mock.sh`：**181 项后端、17 项组件、16 项 Chrome 全部通过**，无失败、跳过或 flaky。OpenAPI / 类型生成、前端构建、HTTP 崩溃恢复与 diff 检查通过。新增 Chrome 用例在默认 16 KiB 阈值下，从页面提交长剧本，核对实际 read_tool_result 分页轨迹、完整脚本正文与刷新恢复。页面与对话的既有交替执行链路继续通过。文本、图片、视频均为 Mock，未调用真实供应商。本轮完整验收：`data/verification/phase6-4ae9a808d6/summary.json` · Chrome 记录：`data/verification/web-d4ddeec7c8/browser/results.json`
 
 验收覆盖：大结果外置并分页还原、Unicode 与批量结果预算、只裁旧已消费正文、当前要求与配对保护、摘要输入包含中间关键事实和全部分块、检查点恢复不重复业务写入、摘要失败 / UNKNOWN、主子及账号隔离，以及原有全 Mock 回归。质量验收使用固定事实断言；不以 Mock 压缩率证明真实模型摘要准确率或任务完成率提升。
 
@@ -53,13 +55,13 @@ JDK 21、本机独立 PostgreSQL 16、数据库派发模式执行 `scripts/verif
 
 每个运行启动时冻结可见目录的元数据、正文与内容哈希。load_skill 只读该运行快照，目录后续修改不影响已开始的运行；数据库保存的是运行证据，不是 Skill 的编辑源。保存接口校验 expectedVersion，写入采用原子替换。目录名与 frontmatter name 一致，拒绝越界路径、符号链接和非法角色。Skill 内容不能扩大服务端工具权限，子 Agent 没有 Skill 写工具。
 
-实现由 `SkillDirectory` 直接扫描文件，`/api/skills` 提供列表、读取与保存，主 Agent 使用同一目录服务。文件格式与操作方式见 [skills/README.md](../skills/README.md)。站内 `/` 菜单仍是业务操作快捷入口，与文件库目录分别提供契约。
+实现由 `SkillDirectory` 直接扫描文件，`/api/skills` 提供列表、读取与保存，主 Agent 使用同一目录服务。文件格式与操作方式见 [skills/README.md](../../skills/README.md)。站内 `/` 菜单仍是业务操作快捷入口，与文件库目录分别提供契约。
 
 验收包括动态新增发现、文件直接编辑、API / Agent 保存后的同文件可见性、个人覆盖隔离、版本冲突，以及编辑后旧运行继续加载旧快照。保持此前三层工作流全 Mock 回归。
 
 本轮新增 V21 保存运行 Skill 快照。`SkillDirectoryTest` 与 `SkillDirectoryIntegrationTest` 共 6 项专项通过：编辑器新增文件后自动发现；程序保存与直接编辑读取同一文件；个人覆盖不影响其他用户；拒绝过期保存、路径越界、符号链接与非法元数据；运行创建后编辑文件仍加载旧正文；主 Agent 创建个人 Skill 后，新的子运行实际通过 load_skill 加载该 ID，无需 Java 注册。
 
-JDK 21、独立 PostgreSQL 16 上的全 Mock 验收通过：168 项后端、17 项组件、15 项 Chrome，无失败、跳过或 flaky。OpenAPI / 类型生成、前端构建与 HTTP 崩溃恢复通过，没有调用真实供应商。[本轮验收记录](../data/verification/phase6-a3ec697b9f/summary.json)
+JDK 21、独立 PostgreSQL 16 上的全 Mock 验收通过：168 项后端、17 项组件、15 项 Chrome，无失败、跳过或 flaky。OpenAPI / 类型生成、前端构建与 HTTP 崩溃恢复通过，没有调用真实供应商。本轮验收记录：`data/verification/phase6-a3ec697b9f/summary.json`
 
 ## 三层执行基座补齐（已实现，Mock 验收通过）
 
@@ -95,10 +97,10 @@ JDK 21、独立 PostgreSQL 16 上的全 Mock 验收通过：168 项后端、17 �
 
 ### 本轮 Mock 验收结果
 
-在 JDK 21、本机独立 PostgreSQL 16 与 Chrome 上运行 `scripts/verify-all-mock.sh`，162 项后端、17 项组件、15 项浏览器测试全部通过，无失败、跳过或浏览器 flaky。OpenAPI / TypeScript 契约生成、类型检查、前端构建、HTTP 崩溃恢复及 diff 检查通过。[验收汇总](../data/verification/phase6-e5860da958/summary.json)
+在 JDK 21、本机独立 PostgreSQL 16 与 Chrome 上运行 `scripts/verify-all-mock.sh`，162 项后端、17 项组件、15 项浏览器测试全部通过，无失败、跳过或浏览器 flaky。OpenAPI / TypeScript 契约生成、类型检查、前端构建、HTTP 崩溃恢复及 diff 检查通过。验收汇总：`data/verification/phase6-e5860da958/summary.json`
 
 - 主 Agent 直接操作轨迹为 load_skill → get_status → load_skill → execute_action；业务回执、提案与原任务关联保留。相同消息请求重放不新增运行。
-- 浏览器连续任务“先整理本集剧本，然后规划分镜”的主运行实际记录 7 轮模型请求、6 次工具调用，含两次 delegate_child 与两次 await_child。每个专业任务各自执行 load_skill → read_input → read_previous → submit_draft。页面先发起剧本，随后在主会话修订并接续分镜；刷新后仍能读取完整执行记录。草案没有自动应用，未提交额外媒体任务。[浏览器工具轨迹](../data/verification/web-42057d4475/browser/agent-runtime-page-and-mai-d1963--resume-a-two-agent-request/agent-runtime-trace.json)
+- 浏览器连续任务“先整理本集剧本，然后规划分镜”的主运行实际记录 7 轮模型请求、6 次工具调用，含两次 delegate_child 与两次 await_child。每个专业任务各自执行 load_skill → read_input → read_previous → submit_draft。页面先发起剧本，随后在主会话修订并接续分镜；刷新后仍能读取完整执行记录。草案没有自动应用，未提交额外媒体任务。浏览器工具轨迹：`data/verification/web-42057d4475/browser/agent-runtime-page-and-mai-d1963--resume-a-two-agent-request/agent-runtime-trace.json`
 - 后端注入一份过短剧本，第一次 submit_draft 返回校验错误，下一次模型请求确实携带该 tool_call_id 与错误，第二次提交修复成功。子 Agent 越权调用主工具被拒后，可加载正确 Skill 继续。
 - 覆盖模型无限调用的轮数上限、已提交工具回执的中断重放、不同 call_id 重复写入只生成一个业务回执、模型请求前已提交消息与运行，以及复用图片消息请求键时在任何模型 / 业务调用前拒绝。
 - 主模型请求不含冻结原文标记；子任务读取本集输入。跨用户运行记录返回 404，旧剧本分镜应用仍受版本冲突保护。模拟真实请求丢失后进入 UNKNOWN，断言没有再次调用模型适配器；此项没有发起真实供应商请求。
@@ -149,7 +151,7 @@ JDK 21、独立 PostgreSQL 16 上的全 Mock 验收通过：168 项后端、17 �
 - 修改正文后，旧运行无法关联新批次或继续出图。跨账号读取本集计划返回 404。
 - Chrome 验证 Agent 发起、页面确认并批量出图、刷新后回到对话接续。显式提交视频后，三段视频分别记录各自的选中首帧。
 
-首轮浏览器验收与开发 Worker 使用同一数据库，观察到一份视频落在开发媒体目录，验收预览返回 404。独立库重跑后视频播放与全量浏览器回归通过。 [本机验收汇总](../data/verification/phase6-2a4b6b5c4f/summary.json)
+首轮浏览器验收与开发 Worker 使用同一数据库，观察到一份视频落在开发媒体目录，验收预览返回 404。独立库重跑后视频播放与全量浏览器回归通过。 本机验收汇总：`data/verification/phase6-2a4b6b5c4f/summary.json`
 
 ## 主子 Agent 扩展规格
 
@@ -190,10 +192,10 @@ ArcReel 让同一个 `generate-assets` 子智能体执行多种生成工具并�
 | 编排调用累计输入 | 102,532 | 1,426 |
 | 全链路累计输入，含子 Agent | 179,874 | 18,352 |
 
-对照组每轮携带完整原文窗口和中间产物历史。分离组的编排输入使用当轮指令及摘要引用，子步骤按角色读取原文、脚本和上版产物。计数适用于这份固定样本和基线，代表离线请求估算。本轮新增 Skill 与实际多轮工具消息后，不能沿用这组数字作为当前运行器的收益。供应商计费、提示缓存与实际创作质量需要独立验证。 [对照脚本](../scripts/compare-creative-tokens.py) · [本机对照报告](../data/verification/web-5c60c8b356/token-comparison.json)
+对照组每轮携带完整原文窗口和中间产物历史。分离组的编排输入使用当轮指令及摘要引用，子步骤按角色读取原文、脚本和上版产物。计数适用于这份固定样本和基线，代表离线请求估算。本轮新增 Skill 与实际多轮工具消息后，不能沿用这组数字作为当前运行器的收益。供应商计费、提示缓存与实际创作质量需要独立验证。 [对照脚本](../../scripts/compare-creative-tokens.py) · 本机对照报告：`data/verification/web-5c60c8b356/token-comparison.json`
 
 ### 扩展验收结果
 
-在独立 PostgreSQL 16 上执行数据库模式全 Mock 回归，152 项后端、17 项组件和 14 项 Chrome 测试通过。类型生成、前端构建和 HTTP 崩溃恢复通过。Chrome 专项串起长稿上传、分集审阅与确认建集、剧本修订、独立分镜子会话、刷新后从主会话接续、页面应用分镜，以及后续生成和视频首帧追溯。后端专项覆盖分页窗口断点、来源替换、旧剧本分镜应用冲突与跨账号隔离。 [本机全量验收汇总](../data/verification/phase6-0d860b62ae/summary.json)
+在独立 PostgreSQL 16 上执行数据库模式全 Mock 回归，152 项后端、17 项组件和 14 项 Chrome 测试通过。类型生成、前端构建和 HTTP 崩溃恢复通过。Chrome 专项串起长稿上传、分集审阅与确认建集、剧本修订、独立分镜子会话、刷新后从主会话接续、页面应用分镜，以及后续生成和视频首帧追溯。后端专项覆盖分页窗口断点、来源替换、旧剧本分镜应用冲突与跨账号隔离。 本机全量验收汇总：`data/verification/phase6-0d860b62ae/summary.json`
 
 现有本机开发库记录了 `V18__storyboard_creative_memory.sql`，当前工作区缺少该迁移文件。扩展使用 V19，验收走独立库。沿用原开发库时需先恢复其原始 V18 迁移，或改用独立开发库。

@@ -28,7 +28,7 @@
 
 *《长夜将明》第 1 集「雨夜」的分镜工作台截图。画面展示导入本地开发库的 ChatGPT 分镜图，三镜分别有 3、2、1 张备选。*
 
-个人项目支持从 Agent 对话里整理剧本、规划分镜和推进已明确授权的操作。对图片给出纠正后，可以比较新旧候选，并在明确满意时将要求保存为指定范围的偏好或可填参的配方。详情见[主／子 Agent](docs/backend-phase12.md)和[图片纠正与创作配方](docs/image-learning.md)。
+个人项目支持从 Agent 对话里整理剧本、规划分镜和推进已明确授权的操作。对图片给出纠正后，可以比较新旧候选，并在明确满意时将要求保存为指定范围的偏好或可填参的配方。详情见[创作流程指南](docs/workflow.md)。
 
 ## 快速开始
 
@@ -47,7 +47,7 @@ npm run dev --prefix apps/web
 2. 使用 Docker 时，执行 `docker compose --env-file .env -f infra/docker-compose.yml up -d postgres`。待数据库就绪后运行 `scripts/dev-api.sh`。API 默认监听 `127.0.0.1:8080`，Flyway 会初始化数据库。
 3. 在另一个终端按上面的方式启动前端，使用 `.env` 中设置的种子账号登录。新建项目和分集，完成拆镜、确认、分镜图和视频生成。
 
-开发环境的 API 契约见 [Swagger UI](http://127.0.0.1:8080/swagger-ui.html)。macOS 启动脚本会选择已安装的 JDK 21。旧开发库若执行过缺少原文件的 V18 迁移，请按[迁移说明](docs/backend-phase12.md)处理。
+开发环境的 API 契约见 [Swagger UI](http://127.0.0.1:8080/swagger-ui.html)。macOS 启动脚本会选择已安装的 JDK 21。旧开发库若执行过缺少原文件的 V18 迁移，请按[迁移说明](docs/development.md#flyway-迁移)处理。
 
 ## 架构与工程
 
@@ -73,19 +73,12 @@ npm run dev --prefix apps/web
 
 ## 验证与文档
 
-2026-11-05 的独立 PostgreSQL 16 全 Mock 验收通过 **189 项后端、17 项组件、17 项 Chrome 用例**，并覆盖类型、契约、构建与 HTTP 崩溃恢复。将 `VERIFY_DATABASE_URL` 指向独立验证库后，可运行 [`scripts/verify-all-mock.sh`](scripts/verify-all-mock.sh) 复现。真实供应商的有限验证记录见[图片适配](docs/backend-phase4.md)与[视频适配](docs/backend-phase5.md)。[全 Mock 验收记录](docs/image-learning.md#2026-11-05-验收结果)
+2026-11-05 的独立 PostgreSQL 16 全 Mock 验收通过 **189 项后端、17 项组件、17 项 Chrome 用例**，并覆盖类型、契约、构建与 HTTP 崩溃恢复。复现步骤和历史供应商验证范围见[本地开发与验收](docs/development.md)。
 
 | 想了解 | 文档 |
 | --- | --- |
-| 产品交互与开发阶段 | [产品说明](docs/product.md) · [路线图](docs/roadmap.md) |
-| 任务调度与恢复 | [技术设计](docs/tech-design.md) · [RabbitMQ 批次](docs/backend-phase7.md) · [Redis 准入](docs/backend-phase8.md) |
-| Agent 与协作 | [自然语言工作台](docs/backend-phase9.md) · [团队协作](docs/backend-phase10-team-management.md) · [主／子 Agent](docs/backend-phase12.md) |
-| 分镜与图片迭代 | [分镜创作方案](docs/creative-variants-plan.md) · [图片反馈与配方](docs/image-learning.md) |
-| UI 与素材来源 | [设计系统](design/README.md) · [素材署名](design/assets/STYLE_SOURCES.md) |
-
-<details>
-<summary>早期实现记录</summary>
-
-[后端骨架](docs/backend-phase1.md) · [项目与分集](docs/backend-phase2.md) · [拆镜](docs/backend-phase3.md) · [资产与分镜图](docs/backend-phase4.md) · [视频与首帧](docs/backend-phase5.md) · [观测与端到端验收](docs/backend-phase6.md)
-
-</details>
+| 启动、迁移与测试 | [本地开发与验收](docs/development.md) |
+| 工作台、Agent 与团队协作 | [创作流程](docs/workflow.md) |
+| 任务、版本与故障恢复 | [系统架构](docs/architecture.md) |
+| 设计取舍与阶段证据 | [历史归档](docs/archive/README.md) |
+| UI、品牌与素材来源 | [设计系统与品牌](design/README.md) · [素材来源与署名](design/assets/STYLE_SOURCES.md) |

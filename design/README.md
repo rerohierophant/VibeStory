@@ -1,53 +1,25 @@
-# 设计资产
+# 设计系统与品牌
 
-## 内容
+## 主题与页面
 
-- `tokens.css`：框架无关的 CSS 变量、字体声明和少量通用组件类。
-- `theme.js`：同一套设计令牌的 JS 导出，供 Tailwind 主题或图表、canvas 等非 CSS 场景使用。
-- `assets/fonts/Audiowide-Regular.ttf`：品牌展示字体。
-- `assets/images/style/`：画面风格预览素材目录，22 个内置预设已绑定本地 Pinterest 参考图，另支持用户上传自定义参考图；`imagePosition` 控制竖图在横向卡片中的取景。来源与许可状态见 `assets/STYLE_SOURCES.md`，逐图下载记录见 `assets/style-references.json`。
-- `assets/images/favicon.svg`：浏览器标签图标。
-- `assets/brand/`：品牌 Logo（标记、横版锁定、使用规则），见 `assets/brand/README.md`。
+工作台通过 CSS 导入设计令牌，并用 Tailwind 的 `@theme inline` 映射颜色、圆角和展示字体。图表或 Canvas 等 JavaScript 场景可以复用同一套主题导出。修改共享值时同步两份定义。 [CSS 令牌](tokens.css) · [JS 主题](theme.js) · [工作台样式入口](../apps/web/src/styles/index.css)
 
-## 页面对应
+新增界面沿用现有的文字、背景和状态色。主渐变留给当前页面的主要确认操作，列表和空状态的次要入口使用描边按钮。正文使用 PingFang SC 或系统字体，Audiowide 用于品牌展示。页面尺寸和交互以实际组件为准。 [页面组件](../apps/web/src/pages/) · [工作区组件](../apps/web/src/features/) · [创作流程](../docs/workflow.md)
 
-以 `apps/web/src` 的实现为准。
+## 品牌标记
 
-| 页面 | 说明 |
+标记以断开的分镜框顶边组成字母 V，使用白色描边和 `#d946ef` 到 `#7c3aed` 的固定渐变。保留原有方向、长宽比和圆角底板，四周留白。 [品牌标记 SVG](assets/brand/mark.svg)
+
+| 场景 | 用法 |
 | --- | --- |
-| 登录页 | 左侧品牌/背景区 + 右侧 519px 表单栏，主按钮为洋红到紫色渐变 |
-| 工作台外壳 | 280px 左栏：我的项目 / 资产库 / 设置，底部账号与退出 |
-| 项目列表 | 项目卡片网格（465:300）、虚线「新建项目」卡片；封面按项目 ID 独立占位并标明「暂无封面」，风格仅作标签；新建入口为 outline，主渐变只留给弹窗内「创建项目」 |
-| 新建项目弹窗 | 最大 1120px 宽模态，项目名称、画面风格、风格描述，右侧「创建后会发生什么」；风格分真人剧（9）、漫剧（6）、风格化（7）、自定义四类，自定义支持上传与删除参考图 |
-| 项目布局 | 280px 左栏：返回项目、项目概览 / 分集 / 角色库 / 场景库；下方分集列表带状态点与搜索 |
-| 项目概览 | 独立项目封面占位 + 四个统计卡 + 分集列表 + 角色 / 场景摘要，封面不复用风格参考图 |
-| 分集 | 卡片网格，封面由前三个已选首帧拼成，集名可改，带确认进度条 |
-| 集工作区 | 三个 Tab：故事 / 分镜 / 视频；无镜头时后两个禁用，页头有「全部确认」与「其他分集」 |
-| 故事 Tab | 左侧满高剧本编辑区，右侧 320px 栏（集名、梗概、拆解状态、集进度）；已有镜头时重新拆解先弹覆盖确认，首次拆解直接执行，执行中禁用按钮 |
-| 分镜 Tab | 一行一镜的五列表格（镜号 / 画面 / 描述台词 / 参数 / 状态操作），固定表头；主图宽 240–352px，候选图宽 56px，窄窗口在表内横向滚动；三种筛选（全部 / 待出图 / 待确认）；点文字或「编辑镜头」开 400px 抽屉，点图开预览弹窗；两处均展示当前候选图的人物 / 场景版本来源 |
-| 视频 Tab | 已确认镜头的视频卡网格，四种筛选（全部 / 已生成 / 未生成 / 失败），占位播放器、失败提示与首帧来源；切图后已有视频仍可查看 |
-| 资产库 | 仅人物 / 场景资产：基准形象 + 版本历史 + 使用统计；项目内与全局共用同一组件；切换基准版本用于后续生成，已有分镜图保留原生成来源 |
+| 登录页与侧栏 | React 组件组合标记和 Audiowide 字标，登录页桌面版用 40px，侧栏用 30px。 [Logo 组件](../apps/web/src/components/Logo.tsx) |
+| 独立展示 | 使用 96×96 的标记或 328×96 的横版组合。横版的字标已转为轮廓。 [横版 SVG](assets/brand/lockup.svg) |
+| 浏览器标签页 | 使用针对 16–32px 加粗笔画的图标。 [favicon](../apps/web/public/favicon.svg) |
 
-## 视觉基准
+Audiowide 来自 Google Fonts，遵循 SIL Open Font License 1.1，分发时保留许可说明。 [本地字体文件](assets/fonts/Audiowide-Regular.ttf)
 
-- 深色背景 `#0D0F11`，面板 `#111214` / `#262C36`，悬停 `#2E3A45`。
-- 主文字 `#E3E3E3`，次级文字 `#B8C0CC`，分隔线 `#576776`。
-- 紫色强调 `#7B57E0`；强调文字用 `--vibe-accent-soft` `#C9B6FF`，浅底深字用 `--vibe-accent-ink` `#1B1530`。
-- 主按钮为 `#c026d3 → #6d28d9` 渐变（白字 4.71:1 / 7.10:1），悬停 `#a121cc → #5b21b6` 并带洋红辉光。渐变只用于一屏一个的「确认型」操作，列表页头部与空状态的入口用 outline。
-- 状态色统一走 token：成功 `#2AA31F` / 浅 `#8FE084`，警告 `#F5C451`，错误 `#F53B30` / 浅 `#FF9C96`；不再直接使用 Tailwind 的 amber / emerald。
-- 两侧栏统一 280px（工作台外壳与项目内布局一致），背景为 `bg-panel/50`。
-- 中文使用 PingFang SC / system-ui；品牌字使用 Audiowide。
-- 圆角：卡片 8px、面板 16px、模态 24px、胶囊 999px。
-- 输入框高 56px，聚焦时 2px 紫色内描边。
-- 滚动条宽 6px，滑块为 30% 白色。
+## 画面风格与参考图
 
-## 字体与素材来源
+内置风格的名称、分类、稳定 ID、图片和卡片取景位置由前端预设定义。风格图片存放在 `apps/web/public/style/`，Vite 通过 `/style/` 提供预览。修改预设后，从仓库根运行 `node scripts/sync-visual-presets.cjs` 同步后端目录。 [前端预设](../apps/web/src/lib/visualPresets.ts) · [本地参考图](../apps/web/public/style/) · [同步脚本](../scripts/sync-visual-presets.cjs)
 
-- Audiowide 字体来自 Google Fonts，遵循 SIL Open Font License 1.1，分发时保留许可说明。
-- 风格卡参考图采集自 Pinterest 公开 Pin，仅作本地原型视觉参考；上传者不等于原作者，未核实使用许可，原有水印与署名保留。逐图来源见 `assets/STYLE_SOURCES.md`。
-- 品牌 Logo 见 `assets/brand/`：一条线同时是分镜框顶边与字母 V，渐变底与主 CTA 同源。
-- 原登录页背景视频未迁移；新登录页需要自行选择背景素材。
-
-## 使用方式
-
-`apps/web`（React + Tailwind CSS）以 `theme.js` 为唯一主题来源：在 Tailwind 配置中引入 `colors`、`breakpoints`、`fontSizes` 并注册 `Audiowide` 字体；`tokens.css` 仅用于非 Tailwind 场景或快速原型。新增界面沿用上述变量，并清楚区分新增设计与既有设计。
+参考图用于原型的风格选择卡片。逐图 Pin、上传者、原始文件信息和许可核验状态保存在素材目录。 [素材来源与署名](assets/STYLE_SOURCES.md) · [原始采集记录](assets/style-references.json)

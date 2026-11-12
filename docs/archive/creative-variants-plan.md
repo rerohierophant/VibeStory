@@ -1,5 +1,7 @@
 # 阶段十一 · 创作方案分支与并行生成
 
+> 历史记录。当前规格和使用方式见[项目文档](../../README.md#验证与文档)。
+
 **已实现。** 在分镜页打开「分镜出图方案」。生成验收统一使用 Mock。
 
 ## 用户场景与范围
@@ -17,7 +19,7 @@
 - Agent 支持「给第 3 镜创建近景出图方案《雨巷》」「查看出图方案」「把出图方案《雨巷》的第 3 镜改为特写并重出」「预览采纳出图方案《雨巷》的第 3 镜」。预览卡需显式确认，采纳后可在原对话回查。
 - 团队项目的方案页使用项目授权。只读成员可比较方案，有编辑权限的成员可提交与采纳。Agent 入口沿用个人项目范围。
 
-[方案服务](../apps/api/src/main/java/com/vibestory/variant/StoryboardVariants.java) · [出图对比面板](../apps/web/src/features/StoryboardVariants.tsx)
+[方案服务](../../apps/api/src/main/java/com/vibestory/variant/StoryboardVariants.java) · [出图对比面板](../../apps/web/src/features/StoryboardVariants.tsx)
 
 ## 数据与执行约定
 
@@ -46,6 +48,6 @@
 
 ## 验收
 
-- 后端专项覆盖乱序完成、未采纳图隔离、请求并发重放、局部复用、采纳冲突整组回滚、归档前禁止覆盖重拆、团队角色与撤权，以及 Agent 工具调用。 [专项测试](../apps/api/src/test/java/com/vibestory/task/StoryboardVariantsIntegrationTest.java)
-- Chrome 用例覆盖方案创建与对比、局部重出、刷新恢复、旧预览拒绝采纳，以及 Agent 采纳后的对话回查。 [浏览器用例](../apps/web/tests/storyboard-variants.spec.ts)
+- 后端专项覆盖乱序完成、未采纳图隔离、请求并发重放、局部复用、采纳冲突整组回滚、归档前禁止覆盖重拆、团队角色与撤权，以及 Agent 工具调用。 [专项测试](../../apps/api/src/test/java/com/vibestory/task/StoryboardVariantsIntegrationTest.java)
+- Chrome 用例覆盖方案创建与对比、局部重出、刷新恢复、旧预览拒绝采纳，以及 Agent 采纳后的对话回查。 [浏览器用例](../../apps/web/tests/storyboard-variants.spec.ts)
 - 真实 PostgreSQL、RabbitMQ、Redis 和独立 Worker 环境中提交两套双镜方案。Redis 停机期间四个任务均未创建 attempt。恢复后注入两条重复 MQ 通知，再终止正在执行的 Worker。四个任务最终均成功，只有被中断任务有两次 attempt。四张图各自归属方案，主分镜选图仍为空。图片全部由 Mock 生成。

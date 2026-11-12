@@ -1,7 +1,7 @@
 [
   {
     "id": "realistic",
-    "file": "design/assets/images/style/realistic-pinterest.jpg",
+    "file": "apps/web/public/style/realistic-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/355362226863530818/",
     "pinTitle": "The Ideal City 理想之城 2021",
     "description": "Two individuals seated in a room with a window and plants in the background. The person on the left is wearing a white shirt and a dark jacket, sitting on a light-colored chair.",
@@ -20,7 +20,7 @@
   },
   {
     "id": "gufeng",
-    "file": "design/assets/images/style/gufeng-pinterest.jpg",
+    "file": "apps/web/public/style/gufeng-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/708261478908027090/",
     "pinTitle": "Pan Mei Ye Chinese Drama photography",
     "description": "Pan Mei Ye is a wonderful Chinese actress who has appeared in many shows like Forever love and Miss the Dragon. Linziye",
@@ -39,7 +39,7 @@
   },
   {
     "id": "zhangyimou",
-    "file": "design/assets/images/style/zhangyimou-pinterest.jpg",
+    "file": "apps/web/public/style/zhangyimou-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/37295503158257961/",
     "pinTitle": "Orange In Film",
     "description": "Hero-Yimou Zhang director Cinematographer : Christopher Doyle",
@@ -58,7 +58,7 @@
   },
   {
     "id": "xianxia",
-    "file": "design/assets/images/style/xianxia-pinterest.jpg",
+    "file": "apps/web/public/style/xianxia-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/4574037114981958/",
     "pinTitle": "White Robes Fantasy Male",
     "description": "A person wearing an elaborate white outfit with intricate embroidery and a decorative belt. The attire includes a long, flowing cape and a high-collared garment. Chinese fashion, Chinese male clothes, Cosplay",
@@ -77,7 +77,7 @@
   },
   {
     "id": "minguo",
-    "file": "design/assets/images/style/minguo-pinterest.jpg",
+    "file": "apps/web/public/style/minguo-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/76631631147042181/",
     "pinTitle": "湯唯在《色戒》中的27套旗袍，你喜歡哪一套",
     "description": "1.海報中的旗袍2.淡雅藍旗袍3.素凈橫條旗袍4.復古旗袍5.藍旗袍6.素雅白旗袍7.喬其紗旗袍8.寶藍色旗袍9.無袖旗袍10.鏤空旗袍11.小碎花旗袍12.布料紫旗袍13.長袖旗袍14.方格藍旗袍15.純凈淡藍色旗袍16.灰格復古旗袍17.白條紋旗袍18.淡藍色碎花旗袍19. Qi pao, Cheongsam traditional, Leung chiu wai",
@@ -96,7 +96,7 @@
   },
   {
     "id": "urban",
-    "file": "design/assets/images/style/urban-pinterest.jpg",
+    "file": "apps/web/public/style/urban-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/616008055322010936/",
     "pinTitle": "The Ideal City 理想之城 2021",
     "description": "A person sitting at a desk in a room filled with books, papers, and various items. The individual is wearing a dark jacket and is focused on something in front of them.",
@@ -115,7 +115,7 @@
   },
   {
     "id": "crime",
-    "file": "design/assets/images/style/crime-pinterest.jpg",
+    "file": "apps/web/public/style/crime-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/700520917054848493/",
     "pinTitle": "True Detective Wallpaper 4k",
     "description": "Capture the essence of a foggy night with this stunning silhouette photography. Discover the beauty of photo art and human silhouettes in this captivating image. Vampire black, In search, Photos and videos",
@@ -134,7 +134,7 @@
   },
   {
     "id": "war",
-    "file": "design/assets/images/style/war-pinterest.jpg",
+    "file": "apps/web/public/style/war-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/618541330083636229/",
     "pinTitle": "1917 movie 4k iPhone 11 Wallpapers",
     "description": "1917 movie 4k #1917Movie #movies #2020Movies #4k | Two soldiers in silhouette against a dramatic sky with clouds and a setting sun. They are walking on a wet, reflective surface near a barbed wire fence. Movies tv",
@@ -153,7 +153,7 @@
   },
   {
     "id": "retro",
-    "file": "design/assets/images/style/retro-pinterest.jpg",
+    "file": "apps/web/public/style/retro-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/478507529169422406/",
     "pinTitle": "芳华",
     "description": "Descubre (y guarda) tus propios Pines en Pinterest.",
@@ -172,7 +172,7 @@
   },
   {
     "id": "anime",
-    "file": "design/assets/images/style/anime-pinterest.jpg",
+    "file": "apps/web/public/style/anime-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/860609810048501107/",
     "pinTitle": "45+ Anime Art Wallpaper HD for Homescreen & Lockscreen",
     "description": "For those of you who like anime art, you should try this wallpaper | An illustration of a person standing on a path surrounded by trees and power lines. The scene includes a puddle reflecting the person's silhouette, and there is a no-parking sign visible. Anime scenery wallpaper, Anime aesthetic",
@@ -191,7 +191,7 @@
   },
   {
     "id": "guoman3d",
-    "file": "design/assets/images/style/guoman3d-pinterest.jpg",
+    "file": "apps/web/public/style/guoman3d-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/660199626606814817/",
     "pinTitle": "【前世今生】：【白蛇缘起】",
     "description": "【白蛇：缘起】晚唐年间，国师发动民众大量捕蛇。前去刺杀国师的白蛇意外失忆，被捕蛇村少年救下。为帮助少女找回记忆，两人踏上了一段冒险旅程。冒险的过程让两人感情迅速升温，但少女蛇妖的身份也逐渐显露，另一边国师与蛇族之间不可避免的大战也即将打响，两人的爱情将要接受巨大考验。歌手：FORMOSA",
@@ -210,7 +210,7 @@
   },
   {
     "id": "ink",
-    "file": "design/assets/images/style/ink-pinterest.jpg",
+    "file": "apps/web/public/style/ink-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/745697650781411011/",
     "pinTitle": "ASIAN BRUSHPAINTER | Walpaper desenho, Samurai desenho, Pintura chinesa",
     "description": "#MasterHuangHuanWu #ChinesePainting #LandscapeBrushPainting",
@@ -229,7 +229,7 @@
   },
   {
     "id": "american",
-    "file": "design/assets/images/style/american-pinterest.jpg",
+    "file": "apps/web/public/style/american-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/403987029085084651/",
     "pinTitle": "Batman: The Golden Streets of Gotham",
     "description": "Batman: The Golden Streets of Gotham | DC Database | Fandom | The cover of a comic book titled \"Las Calles Doradas de Gotham.\" It features a central figure in a dark cloak and mask, standing on a street with buildings in the background. There are circular insets with smaller images of two characters and a bat symbol.",
@@ -248,7 +248,7 @@
   },
   {
     "id": "shojo",
-    "file": "design/assets/images/style/shojo-pinterest.jpg",
+    "file": "apps/web/public/style/shojo-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/859835753860062154/",
     "pinTitle": "matching icons - 𝚌𝚘𝚕𝚕𝚎𝚌𝚝𝚒𝚘𝚗 𝟸",
     "description": "Read 𝚌𝚘𝚕𝚕𝚎𝚌𝚝𝚒𝚘𝚗 𝟸 from the story matching icons by milkirevenge (lilith) with 474 reads. aesthetic, pics, no... Cute anime couples, Anime love, Yandere",
@@ -267,7 +267,7 @@
   },
   {
     "id": "pixel",
-    "file": "design/assets/images/style/pixel-pinterest.jpg",
+    "file": "apps/web/public/style/pixel-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/477170523038410396/",
     "pinTitle": "Pixel Art Town Wallpaper Hd",
     "description": "Discover this stunning pixel art landscape of a city with lots of buildings. Perfect for your digital art collection. #pixelart #landscape #cityscape | Anime scenery",
@@ -286,7 +286,7 @@
   },
   {
     "id": "film",
-    "file": "design/assets/images/style/film-pinterest.jpg",
+    "file": "apps/web/public/style/film-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/170292429640128837/",
     "pinTitle": "Fields Of Gold Aesthetic",
     "description": "Explore this iconic gladiator movie scene where a gentleman's legacy lives on. Visit the-gentlemens-parlor.tumblr.com for more. Warrior, Westworld, King",
@@ -305,7 +305,7 @@
   },
   {
     "id": "cyber",
-    "file": "design/assets/images/style/cyber-pinterest.jpg",
+    "file": "apps/web/public/style/cyber-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/219409813085096579/",
     "pinTitle": "Neon Rainy Lights Cyberpunk - Free 4k Wallpapers - 40.000+ Free 4k Wallpapers - Pixel4k",
     "description": "Experience the futuristic world of cyberpunk with neon lights and urban landscapes. Step into a city where technology and darkness collide, creating a mesmerizing visual display. Neon cyberpunk, Wallpaper cool, Cool backgrounds",
@@ -324,7 +324,7 @@
   },
   {
     "id": "lineart",
-    "file": "design/assets/images/style/lineart-pinterest.jpg",
+    "file": "apps/web/public/style/lineart-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/473440979584201147/",
     "pinTitle": "Ink drawings of New York City - Peter Stults",
     "description": "Check out these stunning ink drawings of New York City by Peter Stults. These detailed sketches capture the beauty and energy of the city, showcasing iconic landmarks and scenes from different parts of Manhattan and Brooklyn. Explore the mix of architecture and cityscape in these beautiful artworks. Manhattan drawing",
@@ -343,7 +343,7 @@
   },
   {
     "id": "noir",
-    "file": "design/assets/images/style/noir-pinterest.jpg",
+    "file": "apps/web/public/style/noir-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/213076626115754931/",
     "pinTitle": "Charlie Chaplin",
     "description": "A person with curly hair and a mustache, wearing a suit and tie. They are holding a pair of scissors in one hand and a fork and knife in the other, sitting at a table with a newspaper on it. Charlie chaplin videos, Charly chaplin, Charley chaplin",
@@ -362,7 +362,7 @@
   },
   {
     "id": "hk90s",
-    "file": "design/assets/images/style/hk90s-pinterest.jpg",
+    "file": "apps/web/public/style/hk90s-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/215750638390606501/",
     "pinTitle": "Fallen Angles",
     "description": "Experience the neon-lit city streets at night from the 1995 movie 'Fallen Angels'. Cinematic photography capturing the essence of fallen angels aesthetic. Night city, The city",
@@ -381,7 +381,7 @@
   },
   {
     "id": "oil",
-    "file": "design/assets/images/style/oil-pinterest.jpg",
+    "file": "apps/web/public/style/oil-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/63824519695981756/",
     "pinTitle": "Rembrandt Lighting Painting",
     "description": "Explore the famous painting 'The Anatomy Lesson' by Rembrandt from the Mauritshuis collection, showcasing the intricate details of a medical demonstration in the Dutch Golden Age. Rembrandt harmenszoon van rijn, Dutch painter, Rembrandt self",
@@ -400,7 +400,7 @@
   },
   {
     "id": "clay",
-    "file": "design/assets/images/style/clay-pinterest.jpg",
+    "file": "apps/web/public/style/clay-pinterest.jpg",
     "pinUrl": "https://www.pinterest.com/pin/110619734593003829/",
     "pinTitle": "Wallace And Gromit House",
     "description": "WALLACE is the father of flawed invention and his dog, Gromit, always saves the day. Now the claymation pair, with all their British eccentricities, are getting a makeover in Sydney. Classic cartoon characters, Stop motion animation, Stop-motion animation",

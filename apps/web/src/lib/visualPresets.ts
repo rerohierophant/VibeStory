@@ -1,7 +1,7 @@
 /**
  * 画面风格预设。
  *
- * 图片存放在 `design/assets/images/style/`，由 Vite 的 publicDir 提供。
+ * 图片存放在 `apps/web/public/style/`，通过 `/style/` 提供。
  * 内置参考图的来源见 `design/assets/STYLE_SOURCES.md` 与 `style-references.json`。
  * 未填 `image` 时渲染统一的占位卡片，不影响选择与保存。
  */
