@@ -52,7 +52,7 @@ class PhaseThreeAcceptance:
         original_ids = [shot["id"] for shot in shots]
         self.first = int(shots[0]["id"])
         client.request("POST", f"/api/shots/{self.first}/video-tasks", {"regenerateNonce": "draft-is-blocked"}, 409)
-        client.request("PUT", f"/api/shots/{self.first}/status", {"status": "confirmed"})
+        client.request("PUT", f"/api/shots/{self.first}/status", {"status": "confirmed"}, 409)
         client.request("PATCH", f"/api/shots/{self.first}", {"description": "人工复核：角色在便利店门口停步", "durationMs": 4500})
         client.request("POST", f"/api/episodes/{self.episode}/breakdowns", {}, 409)
         assert [shot["id"] for shot in client.request("GET", f"/api/episodes/{self.episode}/shots")] == original_ids
@@ -65,10 +65,8 @@ class PhaseThreeAcceptance:
             assert not set(original_ids) & {shot["id"] for shot in shots}
             assert all(shot["status"] == "draft" for shot in shots)
             self.first = int(shots[0]["id"])
-            client.request("PUT", f"/api/shots/{self.first}/status", {"status": "confirmed"})
             client.request("PATCH", f"/api/shots/{self.first}", {"description": "人工复核：角色在便利店门口停步", "durationMs": 4500})
-        client.request("POST", f"/api/episodes/{self.episode}/shots/confirm-all", {})
-        client.request("PUT", f"/api/shots/{self.first}/status", {"status": "draft"})
+        assert all(shot["status"] == "draft" for shot in client.request("POST", f"/api/episodes/{self.episode}/shots/confirm-all", {}))
         characters = client.request("GET", f"/api/projects/{self.project}/characters")
         scenes = client.request("GET", f"/api/projects/{self.project}/scenes")
         assert len({card["name"].strip().lower() for card in characters}) == len(characters)
@@ -87,7 +85,7 @@ class PhaseThreeAcceptance:
                    "characterCards": len(characters), "sceneCards": len(scenes), "requestedModel": os.environ.get("TEXT_MODEL") if self.real else "mock-splitter-v1",
                    "actualModel": completed["history"][0]["model"], "attempts": completed["attempts"]}
         (self.runtime / "phase3-summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n")
-        print(f"PASS: Phase 3 {'real model' if self.real else 'Mock'} task -> {len(self.expected_shots)} shots, scoped asset names, edit/confirm/unconfirm, replacement guard", flush=True)
+        print(f"PASS: Phase 3 {'real model' if self.real else 'Mock'} task -> {len(self.expected_shots)} shots, scoped asset names, edit, confirmation and replacement guards", flush=True)
 
     def check_restart(self, client):
         episode = client.request("GET", f"/api/episodes/{self.episode}")

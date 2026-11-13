@@ -72,7 +72,7 @@ class AgentWorkflows {
                 return view(row, State.PAUSED, 0, output, "出图任务已暂停，请在分镜批次中查看原因");
             boolean incomplete = output.stream().anyMatch(batch -> batch.progress().succeeded() < batch.progress().total());
             return view(row, incomplete ? State.PARTIAL : State.COMPLETE, 0, output,
-                incomplete ? "出图已结算，请查看未成功的镜头" : "分镜图已就绪");
+                incomplete ? "出图已结算，请查看未成功的镜头" : "分镜图已就绪，可到分镜页审阅");
         }
         return switch (row.get("breakdown_status", String.class)) {
             case "QUEUED", "RUNNING" -> view(row, State.WAITING_BREAKDOWN, 0, List.of(), "正在拆镜");
@@ -80,29 +80,24 @@ class AgentWorkflows {
                 var current = workflow.matchingShots(user, row);
                 if (current.isEmpty())
                     yield view(row, State.BLOCKED, 0, List.of(), "正文或镜头范围已变化，请检查本集后再发起流程");
-                int draft = (int) current.stream().filter(shot -> !shot.confirmed()).count();
-                yield view(row, State.WAITING_CONFIRMATION, draft, output, draft == 0
-                    ? "镜头已确认，可以继续为其余缺图镜头出图"
-                    : "拆镜完成，请检查这批镜头并确认出图");
+                int draft = (int) current.stream().filter(shot -> shot.firstFrameId() != null && !shot.confirmed()).count();
+                yield view(row, State.WAITING_CONFIRMATION, draft, output, "拆镜完成，可以为缺图的镜头生成分镜图");
             }
             default -> view(row, State.BLOCKED, 0, List.of(), "拆镜未完成。"
                 + java.util.Objects.toString(row.get("error_message", String.class), "请到故事页查看任务状态"));
         };
     }
 
-    void confirm(long user, UUID conversation, UUID id, boolean confirmShots) {
+    void confirm(long user, UUID conversation, UUID id) {
         var row = require(user, conversation, id);
         long episode = row.get("episode_id", Long.class);
         scope.lockEpisode(user, episode);
         row = require(user, conversation, id);
         if (row.get("confirmed_at") != null) return;
         if (!row.get("breakdown_status", String.class).equals("SUCCEEDED"))
-            throw ApiException.conflict("请等待拆镜成功后再确认出图");
+            throw ApiException.conflict("请等待拆镜成功后再提交出图");
         var current = workflow.matchingShots(user, row);
         if (current.isEmpty()) throw ApiException.conflict("正文或镜头范围已变化，请检查当前分集");
-        if (confirmShots) workflow.confirmShots(user, episode);
-        else if (current.stream().anyMatch(shot -> !shot.confirmed()))
-            throw ApiException.conflict("请先检查并确认流程里的全部镜头");
         var linked = row.get("batch_ids", Long[].class);
         var covered = new java.util.HashSet<>(workflow.coveredShots(linked));
         var missing = current.stream().filter(shot -> !shot.hasImage() && !covered.contains(shot.id()))
@@ -126,8 +121,8 @@ class AgentWorkflows {
         UUID id = row.get("id", UUID.class);
         row = require(user, conversation, id);
         var current = view(user, row);
-        if (current.state() == State.WAITING_CONFIRMATION && current.unconfirmed() == 0) {
-            confirm(user, conversation, id, false);
+        if (current.state() == State.WAITING_CONFIRMATION && !current.batches().isEmpty()) {
+            confirm(user, conversation, id);
             current = view(user, require(user, conversation, id));
         }
         return switch (current.state()) {

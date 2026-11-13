@@ -12,6 +12,7 @@ export const colors = {
   'vibe-panel-hover': '#2E3A45',
   'vibe-dash': '#334E68',
   'vibe-stroke': '#576776',
+  'vibe-portrait-matte': '#737373',
   'vibe-accent': '#7B57E0',
   'vibe-accent-soft': '#C9B6FF',
   'vibe-accent-ink': '#1B1530',

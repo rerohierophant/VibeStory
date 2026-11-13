@@ -27,7 +27,7 @@
 - 前端统一使用 React + TypeScript + Vite + Tailwind CSS。界面通过 `design/tokens.css` 使用共享令牌，JavaScript 场景复用 `design/theme.js` 导出，不重复定义颜色。
 - 后端统一使用 Java 21 + Spring Boot 3 + Gradle，不使用 JDK 11 写法（`javax.*`、无 record、无虚拟线程）。
 - 后端按 package-by-feature 组织：一个业务聚合一个包，不在包内再拆 `controller/service/repository/impl` 四层。简单 CRUD 用 Spring Data JPA，复杂查询用 jOOQ。
-- 数据库迁移用 Flyway，不使用 `ddl-auto: update`；所有状态变更必须有显式事务边界。
+- 数据库迁移用 Flyway，不使用 `ddl-auto: update`；所有状态变更必须有显式事务边界。新迁移不添加外键，关系校验和子数据清理在业务事务内完成。
 - 长任务以数据库状态与租约为准。默认数据库派发；RabbitMQ 与 Redis 的可选部署按[本地开发说明](docs/development.md#本地运行模式)配置，不混跑两种派发模式。
 - `packages/contracts` 保存任务、事件、API 与工具的共享契约。目录边界不强制跨进程部署；API 契约以 springdoc 生成的 OpenAPI 为准，前端类型由它生成。
 - 用户、项目、任务、尝试与资产版本应有明确身份；任何读写均校验作用域。

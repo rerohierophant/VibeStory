@@ -52,7 +52,7 @@ class PhaseThreeIntegrationTest extends PostgresSupport {
     private String story;
 
     @BeforeEach void setup() throws Exception {
-        db.execute("truncate app_user, storage_cleanup restart identity cascade");
+        resetDatabase(db);
         alice = account("alice@example.test"); bob = account("bob@example.test");
         project = id(postJson("/api/projects", Map.of("name", "阶段三", "visualType", "realistic"), 201));
         episode = id(postJson("/api/projects/" + project + "/episodes", Map.of(), 201));
@@ -103,6 +103,7 @@ class PhaseThreeIntegrationTest extends PostgresSupport {
     @Test void existingShotsRequireExplicitConfirmationBeforeAnyMutation() throws Exception {
         completed();
         long shot = shots().get(0).get("id").asLong();
+        installFrame(shot);
         putStatus(shot, "confirmed");
         patchShot(shot, Map.of("description", "人工修改不得无确认覆盖"));
         var ids = shotIds();
@@ -121,8 +122,8 @@ class PhaseThreeIntegrationTest extends PostgresSupport {
     @Test void rebreakdownDeletesOnlyCurrentEpisodeMediaAndKeepsTasksAttemptsAndAssets() throws Exception {
         completed();
         long old = shots().get(0).get("id").asLong();
+        installFrame(old);
         putStatus(old, "confirmed");
-        db.execute("insert into shot_image(shot_id, episode_id, selected, storage_key) values (?, ?, true, 'mock/frame')", old, episode);
         long videoTask = Long.parseLong(tasks.submit(alice.id(), old, "video").taskId());
         var videoLease = store.claim("old-video").orElseThrow();
         String key = "u/" + alice.id() + "/p/" + project + "/e/" + episode + "/video/" + videoTask + "-" + videoLease.signature() + ".mp4";
@@ -162,8 +163,8 @@ class PhaseThreeIntegrationTest extends PostgresSupport {
     @Test void replacementCancelsInFlightVideoAndCleansItsLatePublishedFile() throws Exception {
         completed();
         long oldShot = shots().get(0).get("id").asLong();
+        installFrame(oldShot);
         putStatus(oldShot, "confirmed");
-        db.execute("insert into shot_image(shot_id, episode_id, selected, storage_key) values (?, ?, true, 'mock/frame')", oldShot, episode);
         long videoTask = Long.parseLong(tasks.submit(alice.id(), oldShot, "still-running").taskId());
         var oldVideo = store.claim("old-video").orElseThrow();
         submit(true); finish(namedResult());
@@ -226,10 +227,15 @@ class PhaseThreeIntegrationTest extends PostgresSupport {
         mvc.perform(get("/api/projects/" + project + "/scenes").with(user(alice))).andExpect(jsonPath("$.length()").value(1));
     }
 
-    @Test void draftCannotGenerateAndConfirmedShotRemainsEditableAndCanReturnToDraft() throws Exception {
+    @Test void confirmationRequiresAStoryboardFrameAndOnlyConfirmedShotsCanGenerateVideo() throws Exception {
         completed();
         long shot = shots().get(0).get("id").asLong();
         postJson("/api/shots/" + shot + "/video-tasks", Map.of("regenerateNonce", "draft"), 409);
+        mvc.perform(put("/api/shots/" + shot + "/status").with(user(alice)).with(csrf()).contentType("application/json")
+            .content("{\"status\":\"confirmed\"}")).andExpect(status().isConflict());
+        postJson("/api/shots/" + shot + "/image-tasks", Map.of(), 202);
+        assertThat(shots().get(0).get("status").asText()).isEqualTo("draft");
+        installFrame(shot);
         putStatus(shot, "confirmed");
         var edited = patchShot(shot, Map.of("description", "修改后的确认镜头", "dialogue", "台词", "sceneName", "新场景", "shotSize", "特写", "cameraMove", "推", "durationMs", 4500));
         assertThat(edited.get("status").asText()).isEqualTo("confirmed");
@@ -241,7 +247,8 @@ class PhaseThreeIntegrationTest extends PostgresSupport {
         mvc.perform(patch("/api/shots/" + shot).with(user(alice)).with(csrf()).contentType(MediaType.APPLICATION_JSON)
             .content("{\"durationMs\":13000}")).andExpect(status().isBadRequest());
         postJson("/api/episodes/" + episode + "/shots/confirm-all", Map.of(), 200);
-        for (var item : shots()) assertThat(item.get("status").asText()).isEqualTo("confirmed");
+        for (var item : shots()) assertThat(item.get("status").asText())
+            .isEqualTo(item.get("id").asLong() == shot ? "confirmed" : "draft");
     }
 
     @Test void todoFilterMatchesPageImagesLengthRuleEvenWhenDraftOrUnselected() throws Exception {
@@ -252,7 +259,7 @@ class PhaseThreeIntegrationTest extends PostgresSupport {
         mvc.perform(get("/api/episodes/" + episode + "/shots").param("filter", "todo").with(user(alice)))
             .andExpect(jsonPath("$.length()").value(1));
         mvc.perform(get("/api/episodes/" + episode + "/shots").param("filter", "draft").with(user(alice)))
-            .andExpect(jsonPath("$.length()").value(2));
+            .andExpect(jsonPath("$.length()").value(0));
     }
 
     @Test void failedProviderKeepsExistingShotsAndRawDiagnosticsArePrivate() throws Exception {
@@ -372,6 +379,9 @@ class PhaseThreeIntegrationTest extends PostgresSupport {
         return body(mvc.perform(get("/api/episodes/" + episode + "/shots").with(user(alice))).andExpect(status().isOk()).andReturn());
     }
     private List<Long> shotIds() { return db.fetch("select id from shot where episode_id = ? order by seq", episode).getValues(0, Long.class); }
+    private void installFrame(long shot) {
+        db.execute("insert into shot_image(shot_id, episode_id, selected, storage_key) values (?, ?, true, 'mock/frame')", shot, episode);
+    }
     private void putStatus(long shot, String status) throws Exception {
         mvc.perform(put("/api/shots/" + shot + "/status").with(user(alice)).with(csrf()).contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Map.of("status", status)))).andExpect(status().isOk());

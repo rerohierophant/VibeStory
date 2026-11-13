@@ -5,6 +5,7 @@ import com.vibestory.common.ApiException;
 import com.vibestory.common.ScopeGuard;
 import com.vibestory.common.TextInput;
 import com.vibestory.provider.ImageProvider;
+import com.vibestory.provider.ImageProviders;
 import com.vibestory.task.InputSignature;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
@@ -42,7 +43,8 @@ public class ImageExperience {
     public record Example(String taskId, String url, String prompt, boolean selected) {}
     @Schema(name = "ImageExperienceContext")
     public record Context(TargetType targetType, String targetId, String name, List<Example> examples,
-                          List<Creation> creations, List<Preference> preferences, List<Recipe> recipes) {}
+                          List<Creation> creations, List<Preference> preferences, List<Recipe> recipes,
+                          boolean referenceUploadSupported) {}
     @Schema(name = "ImagePreferenceRemember")
     public record Remember(@NotNull Scope scope, @NotBlank String rule) {}
     @Schema(name = "ImagePreferenceEdit")
@@ -56,12 +58,14 @@ public class ImageExperience {
     private final ScopeGuard scope;
     private final ObjectMapper json;
     private final InputSignature signatures;
+    private final ImageProviders providers;
 
-    public ImageExperience(DSLContext db, ScopeGuard scope, ObjectMapper json, InputSignature signatures) {
+    public ImageExperience(DSLContext db, ScopeGuard scope, ObjectMapper json, InputSignature signatures, ImageProviders providers) {
         this.db = db;
         this.scope = scope;
         this.json = json;
         this.signatures = signatures;
+        this.providers = providers;
     }
 
     public Record target(long user, TargetType type, long id) {
@@ -79,8 +83,10 @@ public class ImageExperience {
         String name = type == TargetType.SHOT ? "第 " + db.fetchOne("select seq from shot where id=?", id).get(0) + " 镜"
             : db.fetchOne("select name from " + (type == TargetType.CHARACTER ? "character_asset" : "scene_asset") + " where id=?", id).get(0, String.class);
         var examples = db.fetch("""
-            select id,input_snapshot from task where user_id=? and project_id=? and target_type=? and target_id=?
-            and type in ('IMAGE','ASSET_IMAGE') and status='SUCCEEDED' order by id desc limit 20
+            select t.id,t.input_snapshot from task t where t.user_id=? and t.project_id=? and t.target_type=? and t.target_id=?
+            and t.type in ('IMAGE','ASSET_IMAGE') and t.status='SUCCEEDED'
+            and not exists (select 1 from asset_version v where v.task_id=t.id and not v.visible_in_library)
+            order by t.id desc limit 20
             """, user, project, type.name(), id).map(row -> {
                 long task = row.get("id", Long.class);
                 var input = input(row.get("input_snapshot", String.class));
@@ -88,7 +94,8 @@ public class ImageExperience {
             });
         var creations = db.fetch("select * from image_creation where user_id=? and target_type=? and target_id=? order by created_at desc limit 20",
             user, type.name(), id).map(this::creation);
-        return new Context(type, Long.toString(id), name, examples, creations, preferences(user, project, type, id), recipes(user, type));
+        return new Context(type, Long.toString(id), name, examples, creations, preferences(user, project, type, id), recipes(user, type),
+            providers.supportsAssetReference(type.name()));
     }
 
     public List<Preference> preferences(long user, long project, TargetType type, long target) {
@@ -121,12 +128,14 @@ public class ImageExperience {
 
     @Transactional
     public Preference remember(long user, UUID creationId, Remember request) {
-        var origin = accepted(user, creationId);
+        var origin = readAccepted(user, creationId, false);
         var type = TargetType.valueOf(origin.get("target_type", String.class));
         long project = origin.get("project_id", Long.class);
         long target = origin.get("target_id", Long.class);
+        scope.lockProject(user, project);
         scope.personalProject(user, project);
         lockUser(user);
+        readAccepted(user, creationId, true);
         String rule = rule(request.rule());
         var prior = db.fetchOne("select * from image_preference where user_id=? and origin_id=? and scope=?", user, creationId, request.scope().name());
         if (prior != null) {
@@ -162,6 +171,12 @@ public class ImageExperience {
             .map(row -> recipe(user, row.get(0, UUID.class)));
     }
 
+    @Transactional(readOnly = true)
+    public List<Recipe> recipes(long user) {
+        return db.fetch("select id from image_recipe where user_id=? order by created_at desc, id", user)
+            .map(row -> recipe(user, row.get(0, UUID.class)));
+    }
+
     @Transactional
     public Recipe saveRecipe(long user, SaveRecipe request) {
         lockUser(user);
@@ -178,7 +193,7 @@ public class ImageExperience {
                 saved.versions().stream().filter(v -> v.version() <= version).toList(), saved.steps());
         }
         if (request.originId() != null) {
-            var origin = accepted(user, request.originId());
+            var origin = readAccepted(user, request.originId(), true);
             scope.personalProject(user, origin.get("project_id", Long.class));
             if (!origin.get("target_type", String.class).equals(request.targetType().name())) throw ApiException.badRequest("配方素材类型与纠正来源不一致");
         }
@@ -252,8 +267,9 @@ public class ImageExperience {
         if (!stored.equals(actual)) throw ApiException.conflict("同一请求标识不能用于不同创作输入");
     }
 
-    private Record accepted(long user, UUID id) {
-        var row = db.fetchOne("select * from image_creation where id=? and user_id=? and decision='ACCEPTED'", id, user);
+    private Record readAccepted(long user, UUID id, boolean lock) {
+        var row = db.fetchOne("select * from image_creation where id=? and user_id=? and decision='ACCEPTED'"
+            + (lock ? " for key share" : ""), id, user);
         if (row == null) throw ApiException.badRequest("请先明确确认满意的生成结果");
         return row;
     }

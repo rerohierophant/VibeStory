@@ -54,7 +54,7 @@ class RedisAdmissionIntegrationTest extends PostgresSupport {
     final TaskStore.Providers mocks=new TaskStore.Providers("mock","mock","mock");
     @BeforeEach void setup() {
         redis.delete(redis.keys(NAMESPACE+":admission:*"));
-        db.execute("truncate app_user,storage_cleanup,generation_bucket restart identity cascade");
+        resetDatabase(db);
         userId=db.fetchOne("insert into app_user(email,password_hash) values ('redis@test','unused') returning id").get(0,Long.class);
         project=db.fetchOne("insert into project(user_id,name,visual_type) values (?,'限流','realistic') returning id",userId).get(0,Long.class);
         episode=db.fetchOne("insert into episode(user_id,project_id,episode_index,title) values (?,?,1,'一') returning id",userId,project).get(0,Long.class);

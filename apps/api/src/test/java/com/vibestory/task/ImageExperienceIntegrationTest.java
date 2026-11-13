@@ -23,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import static org.mockito.Mockito.doReturn;
@@ -47,7 +48,7 @@ class ImageExperienceIntegrationTest extends PostgresSupport {
     long project, episode, shot, second;
 
     @BeforeEach void setup() {
-        db.execute("truncate app_user,storage_cleanup restart identity cascade");
+        resetDatabase(db);
         owner = account("learning@image.test");
         other = account("other@image.test");
         project = project("雨夜");
@@ -121,11 +122,66 @@ class ImageExperienceIntegrationTest extends PostgresSupport {
         assertThatThrownBy(() -> experience.remember(owner.id(), first.id(), new Remember(Scope.USER, "未采纳"))).isInstanceOf(ApiException.class);
     }
 
+    @Test void uploadedGenerationReferenceOverridesHistoricalInputWithoutChangingAssetVersions() throws Exception {
+        long character = db.fetchOne("insert into character_asset(user_id,project_id,name) values (?,?,'沈夜') returning id",
+            owner.id(), project).get(0, Long.class);
+        long original = Long.parseLong(images.submitAsset(owner.id(), true, character, null).taskId());
+        finish();
+        String selected = db.fetchOne("select id from asset_version where character_id=? and is_selected", character).get(0, String.class);
+        var request = new ImageCreationService.Request(UUID.randomUUID(), TargetType.CHARACTER, character, original, "柔和光线", null, Map.of());
+        var data = new MockMultipartFile("request", "request.json", "application/json", json.writeValueAsBytes(request));
+        byte[] png = java.util.Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+        var reference = new MockMultipartFile("reference", "ref.png", "image/png", png);
+        var response = mvc.perform(multipart("/api/image-experience/creations/with-reference").file(data).file(reference)
+            .with(user(owner)).with(csrf())).andExpect(status().isAccepted()).andReturn().getResponse();
+        var created = json.readTree(response.getContentAsByteArray());
+        var task = snapshot(created.path("taskId").asLong());
+        assertThat(task.learning().sourceTaskId()).isEqualTo(Long.toString(original));
+        assertThat(task.prompt()).contains("柔和光线");
+        assertThat(task.references()).hasSize(1);
+        assertThat(task.guidance().usedVersionIds()).containsExactly(task.references().getFirst().versionId());
+        assertThat(task.references().getFirst().versionId()).isNotEqualTo(selected);
+        assertThat(creation.createWithReference(owner.id(), request, reference).id().toString()).isEqualTo(created.path("id").asText());
+        mvc.perform(multipart("/api/image-experience/creations/with-reference").file(data).file(reference)
+            .with(user(other)).with(csrf())).andExpect(status().isNotFound());
+        var different = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(2, 2, java.awt.image.BufferedImage.TYPE_INT_RGB), "png", different);
+        assertThatThrownBy(() -> creation.createWithReference(owner.id(), request,
+            new MockMultipartFile("reference", "other.png", "image/png", different.toByteArray()))).isInstanceOf(ApiException.class);
+        finish();
+        assertThat(db.fetchCount(db.selectFrom("asset_version").where("character_id=? and not visible_in_library", character))).isEqualTo(1);
+        assertThat(db.fetchCount(db.selectFrom("asset_version").where("character_id=? and visible_in_library", character))).isEqualTo(2);
+        assertThat(db.fetchOne("select id from asset_version where character_id=? and is_selected", character).get(0, String.class)).isEqualTo(selected);
+        var next = creation.create(owner.id(), new ImageCreationService.Request(UUID.randomUUID(), TargetType.CHARACTER, character,
+            created.path("taskId").asLong(), "再亮一点", null, Map.of()));
+        assertThat(snapshot(Long.parseLong(next.taskId())).references()).isEmpty();
+    }
+
+    @Test void unsupportedSceneReferenceIsDisabledInContextAndRejectedBeforeCreatingATask() throws Exception {
+        doReturn(new ImageProvider.Capabilities(false, false, 1, false, 1500)).when(providers).capabilities("mock");
+        long scene = db.fetchOne("insert into scene_asset(user_id,project_id,name) values (?,?,'雨巷') returning id",
+            owner.id(), project).get(0, Long.class);
+        mvc.perform(get("/api/image-experience/targets/SCENE/" + scene).with(user(owner)))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.referenceUploadSupported").value(false));
+        var request = new ImageCreationService.Request(UUID.randomUUID(), TargetType.SCENE, scene, null, "雾再浓一点", null, Map.of());
+        var data = new MockMultipartFile("request", "request.json", "application/json", json.writeValueAsBytes(request));
+        byte[] png = java.util.Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+        var reference = new MockMultipartFile("reference", "ref.png", "image/png", png);
+        mvc.perform(multipart("/api/image-experience/creations/with-reference").file(data).file(reference)
+            .with(user(owner)).with(csrf())).andExpect(status().isBadRequest());
+        assertThat(db.fetchCount(db.selectFrom("task"))).isZero();
+        assertThat(db.fetchCount(db.selectFrom("asset_version"))).isZero();
+    }
+
     @Test void recipeVersionsBindDestinationAssetsAndPreserveHistoricalParameters() throws Exception {
         var origin = accepted();
         var original = new SaveRecipe(UUID.randomUUID(), null, 0, TargetType.SHOT, "柔光人物", "人物自然，光线 {{lighting}}", origin.id());
         var saved = experience.saveRecipe(owner.id(), original);
         var v1 = saved.versions().getFirst();
+        mvc.perform(get("/api/image-experience/recipes").with(user(owner)))
+            .andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(saved.id().toString()));
+        mvc.perform(get("/api/image-experience/recipes").with(user(other)))
+            .andExpect(status().isOk()).andExpect(jsonPath("$").isEmpty());
         long another = project("目的项目");
         long destination = shot(another, episode(another), 1, "许星遥在夏日花园");
         var made = creation.create(owner.id(), new ImageCreationService.Request(UUID.randomUUID(), TargetType.SHOT, destination, null,

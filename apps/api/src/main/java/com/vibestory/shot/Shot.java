@@ -32,7 +32,7 @@ public class Shot {
     public Shot(long userId, long projectId, long episodeId, int seq, TextProvider.ShotDraft draft) {
         this.userId = userId; this.projectId = projectId; this.episodeId = episodeId; this.seq = seq;
         sceneName = draft.sceneName(); shotSize = draft.shotSize(); cameraMove = draft.cameraMove();
-        description = draft.description(); dialogue = draft.dialogue(); durationMs = draft.durationMs();
+        description = draft.description(); dialogue = draft.dialogue(); durationMs = TextProvider.DEFAULT_SHOT_DURATION_MS;
         characterNames = List.copyOf(draft.characterNames()); status = "DRAFT";
         createdAt = updatedAt = Instant.now();
     }

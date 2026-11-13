@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vibestory.asset.AssetService;
 import com.vibestory.common.ApiException;
+import com.vibestory.common.ProjectDataCleanup;
 import com.vibestory.common.ScopeGuard;
 import com.vibestory.common.TextInput;
 import com.vibestory.provider.ShotDraftValidation;
@@ -28,16 +29,21 @@ public class ShotService {
     private final DSLContext db;
     private final ObjectMapper json;
     private final StorageCleanup cleanup;
+    private final ProjectDataCleanup dataCleanup;
     private final WorkerProperties worker;
 
-    public ShotService(ShotRepository shots, ScopeGuard scope, AssetService assets, DSLContext db, ObjectMapper json, StorageCleanup cleanup, WorkerProperties worker) {
+    public ShotService(ShotRepository shots, ScopeGuard scope, AssetService assets, DSLContext db, ObjectMapper json,
+                       StorageCleanup cleanup, ProjectDataCleanup dataCleanup, WorkerProperties worker) {
         this.shots = shots; this.scope = scope; this.assets = assets; this.db = db; this.json = json; this.cleanup = cleanup;
+        this.dataCleanup = dataCleanup;
         this.worker=worker;
     }
     public record Image(String id, String label, String seed, long createdAt, JsonNode inputSnapshot, String url, ImageProvider.Guidance guidance) {}
+    public record VideoCandidate(String id, String basedOn, String url, Integer durationMs, String prompt, long createdAt) {}
     public record Video(boolean ready, String basedOn,
                         @io.swagger.v3.oas.annotations.media.Schema(allowableValues = {"idle", "queued", "running", "failed", "unknown"})
-                        String state, int attempts, String error, String url, String taskId, boolean retryable, boolean resumable, Integer durationMs, String pendingBasedOn) {}
+                        String state, int attempts, String error, String url, String taskId, boolean retryable, boolean resumable,
+                        Integer durationMs, String pendingBasedOn, String prompt, List<VideoCandidate> candidates) {}
     @io.swagger.v3.oas.annotations.media.Schema(name = "Shot")
     public record View(String id, String projectId, String episodeId, int seq, String sceneName, String shotSize, String cameraMove,
                        String description, String dialogue, int durationMs,
@@ -51,23 +57,33 @@ public class ShotService {
         scope.episode(userId, episodeId);
         if (!List.of("all", "todo", "draft").contains(filter)) throw ApiException.badRequest("未知镜头筛选条件");
         var rows = shots.findByEpisodeIdAndUserIdOrderBySeq(episodeId, userId);
-        var images = db.fetch("select * from shot_image where episode_id = ? and status = 'READY' and visible_in_storyboard order by id", episodeId)
+        var images = db.fetch("select * from shot_image where episode_id = ? and status = 'READY' and deleted_at is null order by id", episodeId)
             .stream().collect(Collectors.groupingBy(row -> row.get("shot_id", Long.class)));
-        var videos = db.fetch("select distinct on (shot_id) * from video where episode_id = ? order by shot_id, id desc", episodeId)
-            .stream().collect(Collectors.toMap(row -> row.get("shot_id", Long.class), row -> row));
+        var videos = db.fetch("""
+            select v.shot_id, v.id, v.task_id, v.source_image_id, v.duration_ms, v.created_at,
+                   t.input_snapshot->>'prompt' as prompt
+            from video v join task t on t.id=v.task_id
+            where v.episode_id=? order by v.shot_id, v.id desc
+            """, episodeId)
+            .stream().collect(Collectors.groupingBy(row -> row.get("shot_id", Long.class),
+                Collectors.mapping(ShotService::videoCandidate, Collectors.toList())));
         var tasks = db.fetch("select distinct on (target_id) t.*,(select external_task_id from task_attempt where task_id=t.id order by attempt_no desc limit 1) as external_task_id from task t where episode_id = ? and type = 'VIDEO' order by target_id,(status in ('QUEUED','RUNNING')) desc,id desc", episodeId)
             .stream().collect(Collectors.toMap(row -> row.get("target_id", Long.class), row -> row));
         var attempts = db.fetch("select target_id, sum(attempt_count) as attempts from task where episode_id = ? and type = 'VIDEO' group by target_id", episodeId)
             .stream().collect(Collectors.toMap(row -> row.get("target_id", Long.class), row -> row.get("attempts", Integer.class)));
-        var imageTasks = db.fetch("select distinct on (target_id) * from task where episode_id=? and type='IMAGE' and storyboard_variant_revision_id is null order by target_id,(status in ('QUEUED','RUNNING')) desc,id desc", episodeId)
+        var imageTasks = db.fetch("""
+            select distinct on (target_id) * from task where episode_id=? and type='IMAGE'
+                and error_code is distinct from 'PROJECT_STYLE_CHANGED'
+            order by target_id,(status in ('QUEUED','RUNNING')) desc,id desc
+            """, episodeId)
             .stream().collect(Collectors.toMap(row -> row.get("target_id", Long.class), row -> row));
         var guidance = db.fetch("select id,input_snapshot from task where episode_id=? and type='IMAGE'", episodeId)
             .stream().collect(Collectors.toMap(row -> row.get("id", Long.class), row -> {
                 try { return json.readValue(row.get("input_snapshot", String.class), ImageProvider.Input.class).guidance(); }
                 catch (java.io.IOException error) { throw new IllegalStateException("图片任务快照无效",error); }
             }));
-        return rows.stream().map(shot -> view(shot, images.getOrDefault(shot.id(), List.of()), videos.get(shot.id()), tasks.get(shot.id()), attempts.getOrDefault(shot.id(), 0), imageTasks.get(shot.id()), guidance))
-            .filter(shot -> filter.equals("all") || filter.equals("draft") && shot.status().equals("draft") ||
+        return rows.stream().map(shot -> view(shot, images.getOrDefault(shot.id(), List.of()), videos.getOrDefault(shot.id(), List.of()), tasks.get(shot.id()), attempts.getOrDefault(shot.id(), 0), imageTasks.get(shot.id()), guidance))
+            .filter(shot -> filter.equals("all") || filter.equals("draft") && shot.selectedImageId() != null && shot.status().equals("draft") ||
                 filter.equals("todo") && shot.images().isEmpty()).toList();
     }
 
@@ -75,6 +91,28 @@ public class ShotService {
     public View get(long userId, long shotId) {
         var shot = find(userId, shotId);
         return list(userId, shot.episodeId(), "all").stream().filter(item -> item.id().equals(Long.toString(shotId))).findFirst().orElseThrow(ApiException::notFound);
+    }
+
+    @Transactional
+    public void deleteCandidate(long userId, long shotId, long imageId) {
+        var owner = scope.shot(userId, shotId);
+        var image = db.fetchOne("select selected, deleted_at from shot_image where id=? and shot_id=? and status='READY'",
+            imageId, shotId);
+        if (image == null) throw ApiException.notFound();
+        if (image.get("deleted_at") != null) return;
+        // Preserve the image and its generation snapshot for submitted video tasks.
+        db.execute("update shot_image set deleted_at=now(), selected=false where id=?", imageId);
+        if (image.get("selected", Boolean.class)) {
+            db.execute("""
+                update shot_image set selected=true where id=(
+                    select id from shot_image where shot_id=? and status='READY' and deleted_at is null
+                    order by id desc limit 1
+                )
+                """, shotId);
+            if (find(userId, shotId).changeStatus("DRAFT")) shots.flush();
+        }
+        touch(owner.get("episode_id", Long.class), userId);
+        scope.touchProject(owner.get("project_id", Long.class), userId);
     }
 
     @Transactional
@@ -103,23 +141,31 @@ public class ShotService {
     public View status(long userId, long id, String status) {
         scope.shot(userId, id);
         var shot = find(userId, id);
-        if (shot.changeStatus(status.toUpperCase(java.util.Locale.ROOT))) {
+        String next = status.toUpperCase(java.util.Locale.ROOT);
+        if (next.equals("CONFIRMED") && !db.fetchExists(db.selectOne().from("shot_image")
+            .where("shot_id=? and selected and status='READY'", id)))
+            throw ApiException.conflict("请先生成并选定分镜图，再确认镜头");
+        if (shot.changeStatus(next)) {
             shots.flush(); touch(shot.episodeId(), userId); scope.touchProject(shot.projectId(), userId);
         }
         return get(userId, id);
     }
 
     @Transactional
-    public List<View> confirmAll(long userId, long episodeId) {
+    public List<View> confirmAll(long userId, long episodeId, Map<String, String> reviewedFrames) {
         long projectId = scope.lockEpisode(userId, episodeId);
         boolean changed = false;
-        for (var shot : shots.findByEpisodeIdAndUserIdOrderBySeq(episodeId, userId)) changed |= shot.changeStatus("CONFIRMED");
+        var withFrame = db.fetch("""
+            select shot_id,id from shot_image where episode_id=? and selected and status='READY'
+            """, episodeId).intoMap(row -> row.get("shot_id", String.class), row -> row.get("id", String.class));
+        if (reviewedFrames != null && !withFrame.entrySet().containsAll(reviewedFrames.entrySet()))
+            throw ApiException.conflict("预览中的分镜画面已变化，请重新查看后再确认");
+        var frames = reviewedFrames == null ? withFrame : reviewedFrames;
+        for (var shot : shots.findByEpisodeIdAndUserIdOrderBySeq(episodeId, userId)) {
+            if (frames.containsKey(Long.toString(shot.id()))) changed |= shot.changeStatus("CONFIRMED");
+        }
         if (changed) { shots.flush(); touch(episodeId, userId); scope.touchProject(projectId, userId); }
         return list(userId, episodeId, "all");
-    }
-
-    public boolean hasActiveImageVariants(long episodeId) {
-        return db.fetchExists(db.selectOne().from("storyboard_variant").where("episode_id=? and not archived", episodeId));
     }
 
     @Transactional
@@ -145,8 +191,7 @@ public class ShotService {
                 retryable = false, lease_owner = null, lease_until = null, version = version + 1, updated_at = now(), finished_at = now()
             where episode_id = ? and type in ('VIDEO','IMAGE') and status in ('QUEUED','RUNNING')
             """, episodeId);
-        db.execute("delete from storyboard_variant where episode_id = ?", episodeId);
-        db.execute("delete from shot where episode_id = ? and user_id = ?", episodeId, userId);
+        dataCleanup.shots(userId, projectId, episodeId);
         var created = new ArrayList<Shot>();
         for (int index = 0; index < drafts.size(); index++) created.add(new Shot(userId, projectId, episodeId, index + 1, drafts.get(index)));
         shots.saveAllAndFlush(created);
@@ -159,7 +204,13 @@ public class ShotService {
         return created.stream().map(Shot::id).toList();
     }
 
-    private View view(Shot shot, List<Record> images, Record video, Record task, int attempts, Record imageTask, Map<Long,ImageProvider.Guidance> guidance) {
+    private static VideoCandidate videoCandidate(Record row) {
+        return new VideoCandidate(row.get("id", String.class), row.get("source_image_id", String.class),
+            "/api/tasks/" + row.get("task_id", Long.class) + "/video", row.get("duration_ms", Integer.class),
+            row.get("prompt", String.class), row.get("created_at", java.time.OffsetDateTime.class).toInstant().toEpochMilli());
+    }
+
+    private View view(Shot shot, List<Record> images, List<VideoCandidate> videos, Record task, int attempts, Record imageTask, Map<Long,ImageProvider.Guidance> guidance) {
         var fields = shot.fields();
         var candidates = new ArrayList<Image>();
         String selected = null;
@@ -179,10 +230,12 @@ public class ShotService {
         String pending=null;
         if(task!=null) try { pending=json.readTree(task.get("input_snapshot",String.class)).path("sourceImageId").asText(null); }
         catch(java.io.IOException error){throw new IllegalStateException("视频来源快照无效",error);}
-        var projected = new Video(video != null, video == null ? null : video.get("source_image_id", String.class), state,
-            attempts, task == null ? null : task.get("error_message", String.class), video == null ? null : "/api/tasks/" + video.get("task_id", Long.class) + "/video",
+        var video = videos.isEmpty() ? null : videos.getFirst();
+        var projected = new Video(video != null, video == null ? null : video.basedOn(), state,
+            attempts, task == null ? null : task.get("error_message", String.class), video == null ? null : video.url(),
             task==null?null:task.get("id",String.class),task!=null && task.get("retryable",Boolean.class) && task.get("attempt_count",Integer.class)<worker.maxAttempts(),
-            task!=null && state.equals("unknown") && task.get("external_task_id")!=null,video==null?null:video.get("duration_ms",Integer.class),pending);
+            task!=null && state.equals("unknown") && task.get("external_task_id")!=null,
+            video==null?null:video.durationMs(), pending, video==null?null:video.prompt(), videos);
         return new View(fields.id(), fields.projectId(), fields.episodeId(), fields.seq(), fields.sceneName(), fields.shotSize(), fields.cameraMove(),
             fields.description(), fields.dialogue(), fields.durationMs(), fields.status(), fields.characterNames(), List.copyOf(candidates), selected,
             imageTask == null ? "idle" : AssetService.state(imageTask.get("status", String.class)), projected,

@@ -35,10 +35,13 @@ export interface Project {
   name: string;
   visualType: VisualType;
   style: string;
+  synopsis?: string;
   createdAt: number;
   updatedAt: number;
   episodes: Episode[];
   visualPreset?: VisualPreset;
+  styleEditable?: boolean;
+  coverImageUrl?: string;
   teamId?: string;
   version?: number;
 }
@@ -73,19 +76,31 @@ export interface ShotImage {
   };
 }
 
-export interface ShotVideo {
-  ready: boolean;
+interface VideoOutput {
   /** 固定记录提交生成时的首帧，不随当前候选图切换。 */
   basedOn?: string;
+  url?: string;
+  durationMs?: number;
+  /** 提交该视频时使用的提示词。 */
+  prompt?: string;
+}
+
+export interface VideoCandidate extends VideoOutput {
+  id: string;
+  createdAt?: number;
+}
+
+export interface ShotVideo extends VideoOutput {
+  ready: boolean;
   state: TaskState;
   attempts: number;
   error?: string;
-  url?: string;
   taskId?: string;
   retryable?: boolean;
   resumable?: boolean;
-  durationMs?: number;
   pendingBasedOn?: string;
+  /** 成功产物，按生成完成时间从新到旧；任务状态与尝试次数仍在外层。 */
+  candidates?: VideoCandidate[];
 }
 
 export interface Shot {
@@ -103,6 +118,8 @@ export interface Shot {
   status: ShotStatus;
   characterNames: string[];
   images: ShotImage[];
+  /** 离线演示保留的历史图片，用于追溯视频首帧。 */
+  deletedImages?: ShotImage[];
   selectedImageId?: string;
   imageState: TaskState;
   imageTaskId?: string;

@@ -63,7 +63,7 @@ public class MockTextProvider implements TextProvider {
                 lastScene = sceneName;
                 drafts.add(new ShotDraft(description.substring(0, Math.min(120, description.length())), dialogue == null ? "" : dialogue,
                     sceneName, dialogue != null ? "近景" : index == 0 ? "全景" : "中景", MOVES.get(index % 4),
-                    dialogue != null ? 4000 : 3000 + index % 3 * 1000, List.of()));
+                    DEFAULT_SHOT_DURATION_MS, List.of()));
             }
         }
         return new Result(List.copyOf(drafts), null, "mock-splitter-v1");

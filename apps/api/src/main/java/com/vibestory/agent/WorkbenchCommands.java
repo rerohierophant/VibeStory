@@ -24,7 +24,7 @@ public class WorkbenchCommands {
     }
     public AgentResult run(long user, UUID conversation, ChatInput input, UUID commandKey, String instruction) {
         String command = instruction.replaceFirst("^请\\s*", "").replaceFirst("[。！!]+$", "");
-        if (command.equals(WorkbenchSkills.STORY_TO_IMAGES)) {
+        if (WorkbenchSkills.isStoryToImages(command)) {
             workflows.start(user, conversation, input.requestKey(), input.projectId(), input.episodeId());
             return AgentResult.note(WorkbenchSkills.Skill.STORY, "已登记拆镜与出图流程", List.of());
         }
@@ -51,11 +51,11 @@ public class WorkbenchCommands {
     }
 
     private String projectNext(CreativeWorkflows.CreativeProject project) {
-        if (project.source() == null) return "请先在项目概览上传整部原文";
+        if (project.source() == null) return "请先在项目概览导入剧本或输入故事想法";
         if (project.plan() == null || !project.plan().current()) return "原文已就绪，可说「规划项目分集」";
         var plan = project.plan();
         return switch (plan.state()) {
-            case QUEUED, RUNNING -> "剧本子 Agent 正在规划项目分集";
+            case QUEUED, RUNNING -> "正在规划项目分集";
             case READY -> plan.summary() + "。请在项目概览审阅，或说「确认分集草案 " + plan.id() + "」";
             case FAILED, UNKNOWN -> plan.error();
             case APPLIED -> "分集已创建，请打开要继续创作的一集";
@@ -67,7 +67,7 @@ public class WorkbenchCommands {
         if (board != null && board.current()) {
             return switch (board.state()) {
                 case QUEUED, RUNNING -> "分镜子 Agent 正在规划本集分镜";
-                case READY -> board.summary() + "。请在故事页审阅，或说「应用分镜草案 " + board.id() + "」";
+                case READY -> board.summary() + "。审阅后可说「应用分镜草案 " + board.id() + "」";
                 case FAILED, UNKNOWN -> board.error();
                 case APPLIED -> null;
             };
@@ -76,7 +76,7 @@ public class WorkbenchCommands {
         if (script == null || !script.current() || board != null && board.state() == CreativeWorkflows.CreativeState.APPLIED) return null;
         return switch (script.state()) {
             case QUEUED, RUNNING -> "剧本子 Agent 正在整理本集正文";
-            case READY -> "剧本已就绪，版本 " + script.id() + "。可在故事页审阅，或说「规划本集分镜」";
+            case READY -> "剧本已就绪，版本 " + script.id() + "。可说「规划本集分镜」";
             case FAILED, UNKNOWN -> script.error();
             case APPLIED -> null;
         };

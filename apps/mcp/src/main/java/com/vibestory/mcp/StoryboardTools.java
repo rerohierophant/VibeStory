@@ -78,12 +78,14 @@ final class StoryboardTools {
                 }, EPISODE, PROPOSAL),
             tool("discard_shot_edit", "放弃指定的改镜提案。", false, true, true,
                 args -> api.post(proposal(args) + "/discard", null), EPISODE, PROPOSAL),
-            tool("confirm_all_shots", "用户明确确认整集时，将该分集的全部镜头标为已确认。",
+            tool("confirm_all_shots", "用户明确确认整集时，确认该分集中已有选定分镜图的镜头。",
                 false, false, true, args -> {
                     var result = api.post(episode(args) + "/shots/confirm-all", null);
-                    return json.createObjectNode().put("confirmed_count", result.size());
+                    long confirmed = java.util.stream.StreamSupport.stream(result.spliterator(), false)
+                        .filter(shot -> shot.path("status").asText().equals("confirmed")).count();
+                    return json.createObjectNode().put("confirmed_count", confirmed);
                 }, EPISODE),
-            tool("submit_image_batch", "为明确指定且已确认的镜头提交分镜图批次。结果记录每个成员的受理、复用和阻塞状态。",
+            tool("submit_image_batch", "为明确指定的镜头提交分镜图批次。结果记录每个成员的受理、复用和阻塞状态。",
                 false, false, true, args -> {
                     String path = episode(args) + "/generation-batches";
                     var payload = Map.of("type", "IMAGE", "requestKey", requestKey(args), "shotIds", shotIds(args),

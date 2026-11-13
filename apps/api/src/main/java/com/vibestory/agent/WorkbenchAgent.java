@@ -17,11 +17,11 @@ import com.vibestory.shot.ShotEditProposals;
 import com.vibestory.shot.ShotService;
 import com.vibestory.style.VisualStyleService;
 import com.vibestory.task.TaskService;
-import com.vibestory.variant.StoryboardVariants;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.stream.Stream;
 import org.jooq.DSLContext;
 import org.springframework.stereotype.Service;
@@ -30,7 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class WorkbenchAgent {
     public record AgentResult(Skill skill, String message, List<String> details, String projectId, String episodeId,
-                              String taskId, String batchId, ShotEditProposals.Proposal proposal, VariantChoice variantChoice) {
+                              String taskId, String batchId, ShotEditProposals.Proposal proposal, UUID projectPlanId) {
         AgentResult(Skill skill, String message, List<String> details, String projectId, String episodeId,
                     String taskId, String batchId, ShotEditProposals.Proposal proposal) {
             this(skill, message, details, projectId, episodeId, taskId, batchId, proposal, null);
@@ -46,9 +46,6 @@ public class WorkbenchAgent {
         }
     }
 
-    public record VariantChoice(String episodeId, String revisionId, String requestKey, String shotId, long shotVersion,
-                                String selectedImageId, String imageId, String imageUrl) {}
-
     private final DSLContext db;
     private final ObjectMapper json;
     private final ScopeGuard scope;
@@ -63,12 +60,11 @@ public class WorkbenchAgent {
     private final ImageTaskService images;
     private final GenerationBatch batches;
     private final TaskService tasks;
-    private final StoryboardVariants variants;
 
     public WorkbenchAgent(DSLContext db, ObjectMapper json, ScopeGuard scope,
                           ProjectService projects, EpisodeService episodes, VisualStyleService styles, EpisodeWorkflow workflow, CreativeWorkflows creative,
                           ShotService shots, ShotEditProposals proposals, AssetService assets, ImageTaskService images,
-                          GenerationBatch batches, TaskService tasks, StoryboardVariants variants) {
+                          GenerationBatch batches, TaskService tasks) {
         this.db = db;
         this.json = json;
         this.scope = scope;
@@ -83,7 +79,6 @@ public class WorkbenchAgent {
         this.images = images;
         this.batches = batches;
         this.tasks = tasks;
-        this.variants = variants;
     }
 
     @Transactional
@@ -149,6 +144,7 @@ public class WorkbenchAgent {
         String nonce = input.requestKey().toString();
         Skill skill = command.action().skill();
         return switch (command.action()) {
+            case START_SHORT_DRAMA -> startShortDrama(user, input.requestKey(), command.text(1), instruction);
             case OPEN_EPISODE -> openEpisode(user, command);
             case NEW_EPISODE -> {
                 long id = required(project, "请先打开项目");
@@ -194,55 +190,18 @@ public class WorkbenchAgent {
             }
             case CONFIRM_ALL -> {
                 var confirmed = workflow.confirmShots(user, required(episode, "请先打开一集"));
-                yield AgentResult.note(skill, "本集已确认 " + confirmed.size() + " 个镜头", List.of());
+                long count = confirmed.stream().filter(shot -> shot.status().equals("confirmed")).count();
+                yield AgentResult.note(skill, "本集已确认 " + count + " 个镜头", List.of());
             }
             case GENERATE_ASSET, SELECT_ASSET -> asset(user, required(project, "请先打开项目"), command, nonce);
-            case MISSING_IMAGES -> missingImages(user, required(episode, "请先打开一集"), nonce);
+            case MISSING_IMAGES -> missingImages(user, required(episode, "请先打开一集"), nonce, command.text(1) != null);
             case MISSING_VIDEOS -> missingVideos(user, required(episode, "请先打开一集"), nonce);
             case GENERATE_SHOT -> generateShot(user, shot(user, episode, command.number(1)), command.text(2));
             case SELECT_FRAME -> selectFrame(user, shot(user, episode, command.number(1)), command);
-            case VARIANT_CREATE, VARIANT_LIST, VARIANT_REVISE, VARIANT_PREVIEW ->
-                variant(user, input, required(episode, "请先打开一集"), command);
             case PROBLEMS -> problems(user, required(episode, "请先打开一集"));
             case VIDEO_SOURCE -> source(shot(user, episode, command.number(1)));
             case RETRY_FAILED -> retryFailed(user, required(episode, "请先打开一集"));
         };
-    }
-
-    private AgentResult variant(long user, AgentInstruction input, long episode, Command command) {
-        Skill skill = command.action().skill();
-        if (command.action() == WorkbenchSkills.Action.VARIANT_CREATE) {
-            var shot = shot(user, episode, command.number(1));
-            var edit = new StoryboardVariants.Edit(Long.parseLong(shot.id()), shot.description(), command.text(2), shot.cameraMove());
-            var variant = variants.submit(user, episode, new StoryboardVariants.Submit(input.requestKey(), command.text(3), null, List.of(edit)));
-            return AgentResult.note(skill, "已提交出图方案《" + variant.name() + "》", List.of("第 " + shot.seq() + " 镜 · " + edit.shotSize()));
-        }
-        var available = variants.list(user, episode).variants();
-        if (command.action() == WorkbenchSkills.Action.VARIANT_LIST) {
-            var details = available.stream().map(variant -> "《" + variant.name() + "》第 " + variant.revision()
-                + " 版 · 已出图 " + variant.members().stream().filter(member -> member.imageId() != null).count()
-                + "/" + variant.members().size()).toList();
-            return AgentResult.note(skill, details.isEmpty() ? "本集暂无出图方案" : "本集出图方案", details);
-        }
-        var variant = unique(available.stream().filter(item -> item.name().equals(command.text(1))).toList(),
-            "找不到该出图方案", "方案名称有重复，请在分镜页选择");
-        var shot = shot(user, episode, command.number(2));
-        var member = variant.members().stream().filter(item -> item.shotId().equals(shot.id())).findFirst()
-            .orElseThrow(() -> ApiException.badRequest("这套方案没有该镜头"));
-        long revision = Long.parseLong(variant.revisionId());
-        if (command.action() == WorkbenchSkills.Action.VARIANT_REVISE) {
-            var edit = new StoryboardVariants.Edit(Long.parseLong(shot.id()), member.description(), command.text(3), member.cameraMove());
-            var revised = variants.submit(user, episode, new StoryboardVariants.Submit(input.requestKey(), null, revision, List.of(edit)));
-            return AgentResult.note(skill, "已提交《" + revised.name() + "》第 " + revised.revision() + " 版",
-                List.of("重出第 " + shot.seq() + " 镜 · " + edit.shotSize()));
-        }
-        if (member.imageId() == null) throw ApiException.conflict("这张分镜图尚未就绪");
-        var details = List.of("当前 " + shot.shotSize() + " / " + shot.cameraMove() + " · " + shot.description(),
-            "方案 " + member.shotSize() + " / " + member.cameraMove() + " · " + member.description());
-        var choice = new VariantChoice(Long.toString(episode), variant.revisionId(), input.requestKey().toString(), shot.id(),
-            shot.version(), shot.selectedImageId(), member.imageId(), member.imageUrl());
-        return new AgentResult(skill, "采纳预览 · " + variant.name() + " · 第 " + shot.seq() + " 镜", details,
-            null, null, null, null, null, choice);
     }
 
     private AgentResult openEpisode(long user, Command command) {
@@ -274,12 +233,23 @@ public class WorkbenchAgent {
 
     private static String notes(String value) { return value == null ? "" : value.strip(); }
 
+    private AgentResult startShortDrama(long user, UUID key, String theme, String instruction) {
+        var project = projects.create(user, theme.strip(), "realistic", null);
+        long id = Long.parseLong(project.id());
+        String idea = instruction.length() >= 10 ? instruction : "创作短剧的想法：" + instruction;
+        creative.upload(user, id, key, "故事想法", idea, CreativeWorkflows.SourceKind.IDEA);
+        var plan = creative.plan(user, id, key, "");
+        return new AgentResult(Skill.STORY, "已创建《" + project.name() + "》并保存故事想法。", List.of(),
+            project.id(), null, null, null, null, plan.id());
+    }
+
     private AgentResult creativeReceipt(Skill skill, String message, CreativeWorkflows.CreativeTurn turn) {
         return AgentResult.note(skill, message, List.of("产物引用 " + turn.id(), "子会话 " + turn.sessionId()));
     }
 
-    private AgentResult missingImages(long user, long episode, String nonce) {
-        var eligible = shots.list(user, episode, "todo").stream().filter(shot -> shot.status().equals("confirmed")).toList();
+    private AgentResult missingImages(long user, long episode, String nonce, boolean confirmedOnly) {
+        var eligible = shots.list(user, episode, "todo").stream()
+            .filter(shot -> !confirmedOnly || shot.status().equals("confirmed")).toList();
         var unknown = eligible.stream().filter(shot -> shot.imageState().equals("unknown"))
             .map(shot -> "第 " + shot.seq() + " 镜 · 结果未知，请先处理原任务").toList();
         var ids = eligible.stream().filter(shot -> !shot.imageState().equals("unknown"))

@@ -154,7 +154,7 @@ class AgentTools {
             var made = imageCreation.create(c.user(), new ImageCreationService.Request(key, type, target,
                 args.path("sourceTaskId").asText().isBlank() ? null : Long.parseLong(args.path("sourceTaskId").asText()),
                 args.path("instruction").asText(), optionalUuid(args.path("recipeVersionId").asText()), parameters));
-            var reply = new AgentResult(WorkbenchSkills.Skill.GENERATE, "已按要求提交图片候选，可在图片的「纠正与偏好」中比较和评价",
+            var reply = new AgentResult(WorkbenchSkills.Skill.GENERATE, "已按要求提交图片候选。生成后可在工作区查看，也可以在这里告诉我是否满意。",
                 List.of("创作记录 " + made.id()), null, null, made.taskId(), null, null);
             return new Outcome(made, reply, false, false);
         }
@@ -202,7 +202,8 @@ class AgentTools {
             // The chat request key is retained for the legacy durable workflow association.
             var input = new ChatInput(c.run().get("request_key", UUID.class), instruction, c.project(), c.episode(), List.of());
             var reply = commands.run(c.user(), c.run().get("session_id", UUID.class), input, key, instruction);
-            return new Outcome(reply, reply, false, false);
+            // A submitted project plan already has a durable receipt and progress in its own worker.
+            return new Outcome(reply, reply, false, reply.projectPlanId() != null);
         }
         if (name.equals("delegate_child")) {
             if (c.episode() == null) throw ApiException.badRequest("请先打开要创作的一集");
@@ -263,9 +264,10 @@ class AgentTools {
         }
         var action = WorkbenchSkills.route(proposed).action();
         boolean explicit = switch (action) {
+            case START_SHORT_DRAMA -> false;
             case ACCEPT_EPISODE_PLAN, CONFIRM_SHOT, CONFIRM_ALL -> original.contains("确认");
             case APPLY_STORYBOARD -> original.contains("应用") || original.contains("采纳");
-            case GENERATE_ASSET, MISSING_IMAGES, MISSING_VIDEOS, GENERATE_SHOT, SELECT_FRAME, VARIANT_CREATE, VARIANT_REVISE ->
+            case GENERATE_ASSET, MISSING_IMAGES, MISSING_VIDEOS, GENERATE_SHOT, SELECT_FRAME ->
                 original.matches("(?s).*(?:生成|出图|重画|重出|首帧).*");
             case RETRY_FAILED -> original.contains("重试");
             default -> true;

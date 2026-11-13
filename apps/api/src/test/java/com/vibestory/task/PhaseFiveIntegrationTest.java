@@ -33,7 +33,7 @@ class PhaseFiveIntegrationTest extends PostgresSupport {
     private Viewer alice,bob;
     private long project,episode,shot,first,next;
     @BeforeEach void setup(){
-        db.execute("truncate app_user,storage_cleanup restart identity cascade");
+        resetDatabase(db);
         alice=account("alice@phase5.test");bob=account("bob@phase5.test");
         project=db.fetchOne("insert into project(user_id,name,visual_type) values (?,'视频测试','realistic') returning id",alice.id()).get(0,Long.class);
         episode=db.fetchOne("insert into episode(user_id,project_id,episode_index,title) values (?,?,1,'第一集') returning id",alice.id(),project).get(0,Long.class);

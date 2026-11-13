@@ -7,7 +7,11 @@ import java.util.regex.Pattern;
 
 public final class WorkbenchSkills {
     private WorkbenchSkills() {}
-    public static final String STORY_TO_IMAGES = "把这集的故事拆成镜头，我确认后给没图的镜头出图";
+    public static final String STORY_TO_IMAGES = "把这集的故事拆成镜头，准备生成分镜图";
+
+    public static boolean isStoryToImages(String instruction) {
+        return STORY_TO_IMAGES.equals(instruction) || "把这集的故事拆成镜头，我确认后给没图的镜头出图".equals(instruction);
+    }
 
     public enum Skill {
         WORKSPACE("项目与分集"), STORY("故事与拆镜"), SHOT("镜头编辑与确认"),
@@ -24,6 +28,8 @@ public final class WorkbenchSkills {
     private static final String ARTIFACT = "([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})";
 
     public enum Action {
+        START_SHORT_DRAMA(Skill.STORY, true, "帮我做个雨夜悬疑主题的短剧",
+            "(?:帮我\\s*)?(?:做|创作|制作|策划)\\s*(?:一部|一个|部|个)?\\s*(.{1,120}?)\\s*(?:主题(?:的)?|题材(?:的)?|的)?\\s*短剧"),
         PLAN_PROJECT(Skill.STORY, true, "规划项目分集", "规划项目分集" + REVISION),
         ACCEPT_EPISODE_PLAN(Skill.STORY, true, "确认分集草案（填写草案 ID）", "确认分集草案\\s+" + ARTIFACT),
         PREPARE_SCRIPT(Skill.STORY, true, "整理本集剧本", "整理本集剧本" + REVISION),
@@ -41,19 +47,12 @@ public final class WorkbenchSkills {
             "给(?:(角色|场景)" + NAME + "生成(?:一版)?参考图|([^《》\\r\\n]{1,120})生成(?:一版)?(角色|场景)图)"),
         SELECT_ASSET(Skill.ASSET, true, "把角色《沈夜》的第 2 版设为基准",
             "把(角色|场景)" + NAME + "的" + NUMBER + "版设为基准(?:图)?"),
-        MISSING_IMAGES(Skill.GENERATE, true, "给已确认但没图的镜头出图", "给已确认但(?:没图|没有分镜图)的镜头出图"),
+        MISSING_IMAGES(Skill.GENERATE, true, "给没图的镜头出图", "给(?:本集)?(已确认但)?(?:没图|没有分镜图|缺图)的镜头出图"),
         MISSING_VIDEOS(Skill.GENERATE, true, "给本集已选首帧且缺视频的镜头生成视频",
             "给(?:本集)?已选首帧且(?:缺|没有)视频的镜头生成视频"),
         GENERATE_SHOT(Skill.GENERATE, true, "给第 3 镜生成视频", "给" + NUMBER + "镜(?:头)?生成(分镜图|视频)"),
         SELECT_FRAME(Skill.GENERATE, true, "选第 3 镜的第 2 张图做首帧，再生成视频",
             "选" + NUMBER + "镜(?:头)?的" + NUMBER + "张图(?:做|作为)首帧([，,]\\s*再生成视频)?"),
-        VARIANT_CREATE(Skill.GENERATE, true, "给第 3 镜创建近景出图方案《雨巷》",
-            "给" + NUMBER + "镜创建(远景|全景|中景|近景|特写)出图方案" + NAME),
-        VARIANT_LIST(Skill.GENERATE, false, "查看出图方案", "查看(?:本集)?出图方案"),
-        VARIANT_REVISE(Skill.GENERATE, true, "把出图方案《雨巷》的第 3 镜改为特写并重出",
-            "把出图方案" + NAME + "的" + NUMBER + "镜改为(远景|全景|中景|近景|特写)并重出"),
-        VARIANT_PREVIEW(Skill.GENERATE, false, "预览采纳出图方案《雨巷》的第 3 镜",
-            "预览采纳出图方案" + NAME + "的" + NUMBER + "镜"),
         PROBLEMS(Skill.PROGRESS, false, "哪些镜头没成功", "哪些镜头(?:没成功|生成失败了?)"),
         VIDEO_SOURCE(Skill.PROGRESS, false, "第 3 镜视频用了哪张首帧", NUMBER + "镜(?:头)?视频用了哪张首帧"),
         RETRY_FAILED(Skill.PROGRESS, true, "只重试上次失败的", "只重试(?:上次|上一批)失败的(?:任务)?"),

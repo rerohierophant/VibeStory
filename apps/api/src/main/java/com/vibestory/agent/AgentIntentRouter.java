@@ -39,7 +39,7 @@ class AgentIntentRouter {
 
     static boolean known(String instruction) {
         String command = instruction.strip().replaceFirst("^请\\s*", "").replaceFirst("[。！!]+$", "");
-        if (command.equals(WorkbenchSkills.STORY_TO_IMAGES) || isContinue(command)
+        if (WorkbenchSkills.isStoryToImages(command) || isContinue(command)
             || command.matches("只重试(?:上次|上一批)?失败的(?:任务)?")) return true;
         try {
             if (WorkbenchSkills.route(instruction).action() == WorkbenchSkills.Action.EDIT_SHOT)

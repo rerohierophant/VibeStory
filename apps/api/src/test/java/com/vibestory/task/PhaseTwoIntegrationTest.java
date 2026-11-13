@@ -56,7 +56,7 @@ class PhaseTwoIntegrationTest extends PostgresSupport {
     private Viewer bob;
 
     @BeforeEach void setup() {
-        db.execute("truncate app_user, project, episode, shot, shot_image, task, task_attempt, video, custom_style, storage_cleanup restart identity cascade");
+        resetDatabase(db);
         alice = account("alice@example.test");
         bob = account("bob@example.test");
     }
@@ -77,6 +77,63 @@ class PhaseTwoIntegrationTest extends PostgresSupport {
         mvc.perform(get("/api/projects").with(user(bob))).andExpect(content().json("[]"));
     }
 
+    @Test void projectStyleCanChangeBeforeFirstImageAndFailedTasksCannotReplayOldStyle() throws Exception {
+        var project = project("realistic", "换风格");
+        assertThat(project.path("styleEditable").asBoolean()).isTrue();
+        String path = "/api/projects/" + id(project);
+        long episode = id(postJson(path + "/episodes", Map.of(), 201));
+        long shot = coverShot(id(project), episode, 1);
+        long scene = db.fetchOne("insert into scene_asset(user_id, project_id, name) values (?, ?, '雨巷') returning id",
+            alice.id(), id(project)).get(0, Long.class);
+        String shotImages = "/api/shots/" + shot + "/image-tasks";
+        String sceneImages = "/api/assets/scenes/" + scene + "/image-tasks";
+        var shotTask = postJson(shotImages, Map.of(), 202).path("taskId").asText();
+        var sceneTask = postJson(sceneImages, Map.of(), 202).path("taskId").asText();
+
+        mvc.perform(get(path).with(user(alice))).andExpect(jsonPath("$.styleEditable").value(false));
+        mvc.perform(patch(path).with(user(alice)).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"style\":\"冷色调\"}")).andExpect(status().isConflict());
+
+        db.execute("update task set status='FAILED', retryable=true where project_id=?", id(project));
+        var changed = patchJson(path, Map.of("visualType", "cyber", "style", "冷色调"));
+        assertThat(changed.path("styleEditable").asBoolean()).isTrue();
+        assertThat(changed.at("/visualPreset/id").asText()).isEqualTo("cyber");
+        for (String task : List.of(shotTask, sceneTask)) postJson("/api/tasks/" + task + "/retry", Map.of(), 409);
+        mvc.perform(get("/api/shots/" + shot).with(user(alice))).andExpect(jsonPath("$.imageState").value("idle"));
+        mvc.perform(get(path + "/scenes").with(user(alice))).andExpect(jsonPath("$[0].generationState").value("idle"));
+
+        for (String imagePath : List.of(shotImages, sceneImages)) {
+            long task = postJson(imagePath, Map.of(), 202).path("taskId").asLong();
+            assertThat(db.fetchOne("select input_snapshot->>'prompt' from task where id=?", task).get(0, String.class))
+                .contains("赛博朋克", "冷色调");
+        }
+    }
+
+    @Test void projectStyleLocksOnGeneratedAssetsAndLegacyStoryboardFrames() throws Exception {
+        long project = id(project("realistic", "首图锁定风格"));
+        String path = "/api/projects/" + project;
+        long character = db.fetchOne("insert into character_asset(user_id, project_id, name) values (?, ?, '沈夜') returning id",
+            alice.id(), project).get(0, Long.class);
+        db.execute("""
+            insert into asset_version(user_id, project_id, character_id, source, label, storage_key, media_type)
+            values (?, ?, ?, 'uploaded', '参考', 'mock/reference', 'image/png')
+            """, alice.id(), project, character);
+        assertThat(patchJson(path, Map.of("visualType", "anime")).path("styleEditable").asBoolean()).isTrue();
+        db.execute("update asset_version set source='generated' where character_id=?", character);
+        mvc.perform(get(path).with(user(alice))).andExpect(jsonPath("$.styleEditable").value(false));
+        mvc.perform(patch(path).with(user(alice)).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"visualType\":\"cyber\"}")).andExpect(status().isConflict());
+        assertThat(patchJson(path, Map.of("name", "改名")).path("name").asText()).isEqualTo("改名");
+
+        long otherProject = id(project("realistic", "历史分镜"));
+        String otherPath = "/api/projects/" + otherProject;
+        long episode = id(postJson(otherPath + "/episodes", Map.of(), 201));
+        coverImage(coverShot(otherProject, episode, 1), episode, false, null);
+        mvc.perform(get(otherPath).with(user(alice))).andExpect(jsonPath("$.styleEditable").value(false));
+        mvc.perform(patch(otherPath).with(user(alice)).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"style\":\"冷色调\"}")).andExpect(status().isConflict());
+    }
+
     @Test void threeEpisodesPersistIndependentTitlesSummariesAndExactStoriesInProjectRead() throws Exception {
         long project = id(project("realistic", "三集"));
         for (int i = 1; i <= 3; i++) {
@@ -95,6 +152,40 @@ class PhaseTwoIntegrationTest extends PostgresSupport {
             assertThat(episode.get("summary").asText()).isEqualTo("梗概 " + i);
             assertThat(episode.get("story").asText()).isEqualTo("  第 " + i + " 集\r\n\n雨夜。🙂\t尾声  ");
         }
+    }
+
+    @Test void projectCoverUsesTheFirstStoryboardShotWithMediaAndPrefersItsSelectedImage() throws Exception {
+        long project = id(project("realistic", "项目封面"));
+        String path = "/api/projects/" + project;
+        mvc.perform(get(path).with(user(alice))).andExpect(status().isOk()).andExpect(jsonPath("$.coverImageUrl").doesNotExist());
+        long firstEpisode = id(postJson(path + "/episodes", Map.of(), 201));
+        long secondEpisode = id(postJson(path + "/episodes", Map.of(), 201));
+        long laterShot = coverShot(project, secondEpisode, 1);
+        coverImage(laterShot, secondEpisode, true, "image/png");
+        long firstShot = coverShot(project, firstEpisode, 1);
+        coverImage(firstShot, firstEpisode, true, null);
+        long secondShot = coverShot(project, firstEpisode, 2);
+        long firstCandidate = coverImage(secondShot, firstEpisode, false, "image/png");
+        long selected = coverImage(secondShot, firstEpisode, true, "image/png");
+        mvc.perform(get("/api/projects").with(user(alice))).andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].coverImageUrl").value("/api/shot-images/" + selected + "/image"));
+
+        db.execute("update shot_image set selected = false where id = ?", selected);
+        mvc.perform(get(path).with(user(alice))).andExpect(status().isOk())
+            .andExpect(jsonPath("$.coverImageUrl").value("/api/shot-images/" + firstCandidate + "/image"));
+        mvc.perform(get(path).with(user(bob))).andExpect(status().isNotFound());
+    }
+
+    private long coverShot(long project, long episode, int seq) {
+        return db.fetchOne("insert into shot(user_id, project_id, episode_id, seq) values (?, ?, ?, ?) returning id",
+            alice.id(), project, episode, seq).get(0, Long.class);
+    }
+
+    private long coverImage(long shot, long episode, boolean selected, String mediaType) {
+        return db.fetchOne("""
+            insert into shot_image(shot_id, episode_id, selected, media_type, storage_key)
+            values (?, ?, ?, ?, 'mock/cover') returning id
+            """, shot, episode, selected, mediaType).get(0, Long.class);
     }
 
     @Test void storyChangeResetsOnlyDoneAndPreservesShotsImagesVideosAndHistory() throws Exception {
@@ -162,9 +253,11 @@ class PhaseTwoIntegrationTest extends PostgresSupport {
     }
 
     @Test void customPngAndJpegAreStoredResizedResolvedAndScoped() throws Exception {
+        var uploadedIds = new java.util.ArrayList<String>();
         for (String format : List.of("png", "jpg")) {
             var style = upload(format, 800, 400);
             String id = style.get("id").asText();
+            uploadedIds.add(id);
             var project = project(id, "自定义 " + format);
             var read = body(mvc.perform(get("/api/projects/" + id(project)).with(user(alice))).andExpect(status().isOk()).andReturn());
             assertThat(read.get("visualType").asText()).isEqualTo(id);
@@ -179,8 +272,10 @@ class PhaseTwoIntegrationTest extends PostgresSupport {
                 .content(json.writeValueAsString(Map.of("name", "bad", "visualType", id)))).andExpect(status().isNotFound());
         }
         var styles = body(mvc.perform(get("/api/visual-styles").with(user(alice))).andReturn());
-        assertThat(styles.size()).isEqualTo(24);
-        assertThat(body(mvc.perform(get("/api/visual-styles").with(user(bob))).andReturn()).size()).isEqualTo(22);
+        var otherStyles = body(mvc.perform(get("/api/visual-styles").with(user(bob))).andReturn());
+        assertThat(styles).filteredOn(style -> style.path("custom").asBoolean())
+            .extracting(style -> style.path("id").asText()).containsExactlyInAnyOrderElementsOf(uploadedIds);
+        assertThat(otherStyles).noneMatch(style -> style.path("custom").asBoolean());
     }
 
     @Test void customStyleUploadChecksMimeContentSizeAndDimensions() throws Exception {
@@ -198,7 +293,8 @@ class PhaseTwoIntegrationTest extends PostgresSupport {
         long first = id(project(id, "引用一"));
         long second = id(project(id, "引用二"));
         mvc.perform(delete("/api/visual-styles/" + id).with(user(alice)).with(csrf())).andExpect(status().isNoContent());
-        assertThat(body(mvc.perform(get("/api/visual-styles").with(user(alice))).andReturn()).size()).isEqualTo(22);
+        var styles = body(mvc.perform(get("/api/visual-styles").with(user(alice))).andReturn());
+        assertThat(styles).noneMatch(entry -> entry.path("id").asText().equals(id));
         mvc.perform(get("/api/projects/" + first).with(user(alice))).andExpect(jsonPath("$.visualPreset.id").value(id));
         mvc.perform(get(style.get("image").asText()).with(user(alice))).andExpect(status().isOk());
         mvc.perform(post("/api/projects").with(user(alice)).with(csrf()).contentType(MediaType.APPLICATION_JSON)
@@ -244,6 +340,13 @@ class PhaseTwoIntegrationTest extends PostgresSupport {
         tasks.submit(alice.id(), fixture.shot(), "second-video");
         var second = store.claim("stats-two").orElseThrow();
         store.succeed(second, second.version(), new VideoProvider.Result(fixture.key() + ".second", 3000));
+        mvc.perform(get("/api/episodes/" + fixture.episode() + "/shots").with(user(alice)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].video.candidates.length()").value(2))
+            .andExpect(jsonPath("$[0].video.candidates[0].basedOn").value(Long.toString(fixture.image())))
+            .andExpect(jsonPath("$[0].video.candidates[1].basedOn").value(Long.toString(fixture.image())))
+            .andExpect(jsonPath("$[0].video.candidates[0].url").value("/api/tasks/" + second.taskId() + "/video"))
+            .andExpect(jsonPath("$[0].video.candidates[1].url").value("/api/tasks/" + first.taskId() + "/video"));
         db.execute("insert into shot_image(shot_id, episode_id, selected, storage_key) values (?, ?, false, 'mock/other')", fixture.shot(), fixture.episode());
         db.execute("insert into shot(user_id, project_id, episode_id, seq) values (?, ?, ?, 2)", alice.id(), fixture.project(), fixture.episode());
         project("anime", "不应计入");
@@ -254,6 +357,48 @@ class PhaseTwoIntegrationTest extends PostgresSupport {
         db.execute("update shot_image set selected = false where id = ?", fixture.image());
         mvc.perform(get("/api/episodes/" + fixture.episode()).with(user(alice)))
             .andExpect(jsonPath("$.stats.imageCount").value(0)).andExpect(jsonPath("$.stats.videoCount").value(1));
+    }
+
+    @Test void videoRegenerationFreezesReviewedFrameAndEditedPromptWithoutChangingTheShot() throws Exception {
+        var fixture = fixture();
+        var first = store.claim("original-video").orElseThrow();
+        assertThat(store.succeed(first, first.version(), new VideoProvider.Result(fixture.key(), 3000))).isTrue();
+        String shotPath = "/api/shots/" + fixture.shot();
+        patchJson(shotPath, Map.of("description", "原分镜描述"));
+        long frame = db.fetchOne("""
+            insert into shot_image(shot_id, episode_id, version, selected, storage_key)
+            values (?, ?, 2, false, 'mock/next-frame') returning id
+            """, fixture.shot(), fixture.episode()).get(0, Long.class);
+        db.execute("update shot_image set selected=false where id=?", fixture.image());
+        db.execute("update shot_image set selected=true where id=?", frame);
+
+        String path = shotPath + "/video-tasks";
+        String prompt = "人物停下，镜头缓慢向前推。";
+        var request = Map.of("regenerateNonce", "reviewed-video", "expectedFirstFrameId", Long.toString(frame), "prompt", prompt);
+        postJson(path, Map.of("regenerateNonce", "stale-frame", "expectedFirstFrameId", Long.toString(fixture.image()), "prompt", prompt), 409);
+        postJson(path, Map.of("regenerateNonce", "blank-prompt", "expectedFirstFrameId", Long.toString(frame), "prompt", " 　"), 400);
+        assertThat(count("task")).isEqualTo(1);
+
+        var result = postJson(path, request, 202);
+        long task = result.get("taskId").asLong();
+        var snapshot = tasks.input(db.fetchOne("select input_snapshot from task where id=?", task).get(0, String.class));
+        assertThat(snapshot.prompt()).isEqualTo(prompt);
+        assertThat(snapshot.sourceImageId()).isEqualTo(frame);
+        mvc.perform(get(shotPath).with(user(alice)).with(csrf())).andExpect(status().isOk())
+            .andExpect(jsonPath("$.description").value("原分镜描述"))
+            .andExpect(jsonPath("$.video.basedOn").value(Long.toString(fixture.image())))
+            .andExpect(jsonPath("$.video.pendingBasedOn").value(Long.toString(frame)))
+            .andExpect(jsonPath("$.video.candidates.length()").value(1));
+        var lease = store.claim("regenerated-video").orElseThrow();
+        assertThat(store.succeed(lease, lease.version(), new VideoProvider.Result(fixture.key() + ".second", 3000))).isTrue();
+        assertThat(postJson(path, request, 202).get("taskId").asLong()).isEqualTo(task);
+        assertThat(count("task")).isEqualTo(2);
+        mvc.perform(get(shotPath).with(user(alice))).andExpect(status().isOk())
+            .andExpect(jsonPath("$.video.prompt").value(prompt))
+            .andExpect(jsonPath("$.video.basedOn").value(Long.toString(frame)))
+            .andExpect(jsonPath("$.video.candidates[0].prompt").value(prompt))
+            .andExpect(jsonPath("$.video.candidates[0].basedOn").value(Long.toString(frame)))
+            .andExpect(jsonPath("$.video.candidates[1].basedOn").value(Long.toString(fixture.image())));
     }
 
     @Test void projectDeletionCascadesAndRejectsOldWorkerThenDurablyCleansLateMedia() throws Exception {

@@ -50,7 +50,7 @@ class SkillDirectoryIntegrationTest extends PostgresSupport {
     @BeforeEach void setup() throws Exception {
         remove(ROOT.resolve("users"));
         remove(ROOT.resolve("dynamic-method"));
-        db.execute("truncate app_user,storage_cleanup restart identity cascade");
+        resetDatabase(db);
         alice=viewer("skill-owner@test"); bob=viewer("skill-other@test");
         project=db.fetchOne("insert into project(user_id,name,visual_type) values (?,'文件 Skill','realistic') returning id",alice.id()).get(0,Long.class);
         episode=db.fetchOne("insert into episode(user_id,project_id,episode_index,title,story_content) values (?,?,1,'雨夜',?) returning id",

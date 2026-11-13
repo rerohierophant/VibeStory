@@ -172,6 +172,7 @@ function ConnectedTeams({ userId, teamId }: { userId: string; teamId?: string })
 
       {tab === 'members' && capabilities.manageTeam && <section className="mt-8">
         <h2 className="text-lg font-medium">邀请成员</h2>
+        <p className="mt-2 text-sm text-muted">填写对方已注册的邮箱，邀请会出现在对方的团队管理页。</p>
         <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={sendInvite}>
           <label className="text-sm">账号邮箱<input type="email" className="field mt-2 block" required maxLength={254} value={email} onChange={e => setEmail(e.target.value)} /></label>
           <label className="text-sm">邀请角色<select className="field mt-2 block" value={inviteRole} onChange={e => setInviteRole(e.target.value as Role)}>

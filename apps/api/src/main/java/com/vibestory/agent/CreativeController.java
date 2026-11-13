@@ -16,20 +16,20 @@ public class CreativeController {
     CreativeController(CreativeWorkflows creative) { this.creative = creative; }
 
     public record UploadSource(@NotNull UUID requestKey, @NotNull @Size(max = 120) String name,
-                               @NotNull @Size(max = 1048576) String text) {}
+                               @NotNull @Size(max = 1048576) String text, CreativeWorkflows.SourceKind kind) {}
     public record CreativeRequest(@NotNull UUID requestKey, @Size(max = 500) String instruction, UUID scriptId) {
         String notes() { return instruction == null ? "" : instruction.strip(); }
     }
 
     @GetMapping("/api/projects/{projectId}/creative")
     CreativeWorkflows.CreativeProject project(@AuthenticationPrincipal Viewer viewer, @PathVariable long projectId) {
-        return creative.project(viewer.id(), projectId);
+        return creative.project(viewer.id(), projectId, true);
     }
 
     @PostMapping("/api/projects/{projectId}/creative/source")
     CreativeWorkflows.CreativeSource upload(@AuthenticationPrincipal Viewer viewer, @PathVariable long projectId,
                                             @Valid @RequestBody UploadSource input) {
-        return creative.upload(viewer.id(), projectId, input.requestKey(), input.name(), input.text());
+        return creative.upload(viewer.id(), projectId, input.requestKey(), input.name(), input.text(), input.kind());
     }
 
     @PostMapping("/api/projects/{projectId}/creative/plan")

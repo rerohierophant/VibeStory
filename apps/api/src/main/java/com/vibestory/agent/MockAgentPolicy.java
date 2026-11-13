@@ -41,7 +41,7 @@ class MockAgentPolicy {
             catch(java.io.IOException invalid) { throw new IllegalStateException(invalid); }
         }
         var results=new ArrayList<JsonNode>(byCall.values());
-        var needed=role.equals("MAIN") ? java.util.Set.of("list_skills","read_skill") : java.util.Set.of("read_input","read_previous");
+        var needed=role.equals("MAIN") ? java.util.Set.of("list_skills","read_skill","get_image_context") : java.util.Set.of("read_input","read_previous");
         for(int i=0;i<results.size();i++) {
             var result=results.get(i);
             if(!needed.contains(result.path("tool").asText()) || !result.path("offloaded").asBoolean()) continue;
@@ -94,7 +94,7 @@ class MockAgentPolicy {
             if (waited == null) return call("await_child", Map.of("id", turn));
             if (!waited.path("ok").asBoolean()) return done(waited.path("error").path("message").asText());
             if (delegated.size() == 1) return call("delegate_child", Map.of("role", "STORYBOARD", "instruction", instruction));
-            return done("剧本与分镜草案已就绪，请在故事页审阅后应用。");
+            return done("剧本与分镜草案已就绪。分镜草案版本 " + turn + "。");
         }
         WorkbenchSkills.Command command = null;
         try { command = WorkbenchSkills.route(instruction); } catch (IllegalArgumentException ignored) { }
@@ -127,32 +127,49 @@ class MockAgentPolicy {
         var asset = java.util.regex.Pattern.compile("^(纠正|重画|生成)(角色|场景)《([^》]+)》[：:,，]\\s*(.+)$", java.util.regex.Pattern.DOTALL).matcher(instruction);
         var evaluation = java.util.regex.Pattern.compile("^(满意|不满意)第\\s*([1-9][0-9]*)\\s*镜(?:[，,].*)?$", java.util.regex.Pattern.DOTALL).matcher(instruction);
         var assetEvaluation = java.util.regex.Pattern.compile("^(满意|不满意)(角色|场景)《([^》]+)》(?:[，,].*)?$", java.util.regex.Pattern.DOTALL).matcher(instruction);
+        var saveRecipe = java.util.regex.Pattern.compile(
+            "^(?:保存|沉淀)(?:第\\s*([1-9][0-9]*)\\s*镜|(角色|场景)《([^》]+)》)为(?:创作)?配方《([^》]+)》(?:[：:]\\s*(.+))?$",
+            java.util.regex.Pattern.DOTALL).matcher(instruction);
         boolean isShot = shot.matches();
         boolean isAsset = asset.matches();
         boolean isAssetEvaluation = assetEvaluation.matches();
         boolean isEvaluation = evaluation.matches() || isAssetEvaluation;
-        if (!isShot && !isAsset && !isEvaluation) return null;
+        boolean isRecipe = saveRecipe.matches();
+        if (!isShot && !isAsset && !isEvaluation && !isRecipe) return null;
         if (results.stream().noneMatch(r -> r.path("tool").asText().equals("load_skill") && r.path("data").path("id").asText().equals("image-learning")))
             return call("load_skill", Map.of("id", "image-learning"));
-        String assetKind = isAsset ? asset.group(2) : isAssetEvaluation ? assetEvaluation.group(2) : null;
+        String assetKind = isRecipe ? saveRecipe.group(2) : isAsset ? asset.group(2) : isAssetEvaluation ? assetEvaluation.group(2) : null;
         String type = assetKind == null ? "SHOT" : assetKind.equals("角色") ? "CHARACTER" : "SCENE";
-        String target = isAsset ? asset.group(3) : isShot ? shot.group(2) : isAssetEvaluation ? assetEvaluation.group(3) : evaluation.group(2);
+        String target = isRecipe ? saveRecipe.group(assetKind == null ? 1 : 3)
+            : isAsset ? asset.group(3) : isShot ? shot.group(2) : isAssetEvaluation ? assetEvaluation.group(3) : evaluation.group(2);
         var context = find(results, "get_image_context");
         if (context == null) return call("get_image_context", Map.of("targetType", type, "target", target));
         if (!context.path("ok").asBoolean()) return done(context.path("error").path("message").asText());
         var data = context.path("data");
+        if (isRecipe) {
+            var saved = find(results, "save_image_recipe");
+            if (saved != null) return done(saved.path("ok").asBoolean()
+                ? "已保存配方「" + saved.path("data").path("name").asText() + "」，可在对话栏的「创作配方」查看。"
+                : saved.path("error").path("message").asText());
+            var latest = data.path("creations").path(0);
+            if (!latest.path("decision").asText().equals("ACCEPTED")) return done("请先告诉我是否满意这次出图，再保存配方。");
+            String template = saveRecipe.group(5) == null ? latest.path("instruction").asText() : saveRecipe.group(5).strip();
+            if (template.isBlank()) return done("请补充想复用的画面要求。");
+            return call("save_image_recipe", Map.of("id", latest.path("id").asText(), "name", saveRecipe.group(4), "template", template));
+        }
         if (isEvaluation) {
             boolean satisfied = (isAssetEvaluation ? assetEvaluation.group(1) : evaluation.group(1)).equals("满意");
             var latest = data.path("creations").path(0);
-            if (latest.isMissingNode()) return done("当前镜头没有可评价的纠正结果，请先提交纠正图片。");
+            if (latest.isMissingNode()) return done("当前没有可评价的出图记录，请先提交一次带要求的出图。");
             var evaluated = find(results, "evaluate_image");
             if (evaluated == null) return call("evaluate_image", Map.of("id", latest.path("id").asText(),
                 "decision", satisfied ? "ACCEPTED" : "REJECTED"));
             if (!evaluated.path("ok").asBoolean()) return done(evaluated.path("error").path("message").asText());
             if (instruction.contains("记住") && satisfied) {
+                if (latest.path("instruction").asText().isBlank()) return done("已记录满意。请告诉我具体想记住哪条画面偏好。");
                 var saved = find(results, "remember_image_preference");
                 if (saved != null) return done(saved.path("ok").asBoolean() ? "已记录满意结果并保存可编辑的创作偏好。" : saved.path("error").path("message").asText());
-                String range = instruction.contains("个人") ? "USER" : instruction.contains("项目") ? "PROJECT" : "TARGET";
+                String range = instruction.matches("(?s).*(?:个人|所有项目|跨项目|记住我|我的偏好).*") ? "USER" : instruction.contains("项目") ? "PROJECT" : "TARGET";
                 return call("remember_image_preference", Map.of("id", latest.path("id").asText(), "scope", range, "rule", latest.path("instruction").asText()));
             }
             return done("已记录你对这次图片结果的评价。");
@@ -161,6 +178,9 @@ class MockAgentPolicy {
         if (made != null) return done(made.path("ok").asBoolean() ? "已提交图片候选，请生成完成后比较和评价。" : made.path("error").path("message").asText());
         boolean correction = !(isAsset ? asset.group(1) : shot.group(1)).equals("生成");
         var example = data.path("examples").path(0);
+        for (var candidate : data.path("examples")) {
+            if (candidate.path("selected").asBoolean()) { example = candidate; break; }
+        }
         if (correction && example.isMissingNode()) return done("请先生成一张图片，再指定要纠正的结果。");
         return call("generate_image", Map.of("targetType", type, "targetId", data.path("targetId").asText(),
             "sourceTaskId", correction ? example.path("taskId").asText() : "", "instruction", isAsset ? asset.group(4) : shot.group(3),

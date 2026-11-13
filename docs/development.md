@@ -16,6 +16,10 @@
 
 使用新建的 PostgreSQL 16 库启动，Flyway 会应用[仓库里的迁移](../apps/api/src/main/resources/db/migration/)。如果旧开发库记录了 `V18__storyboard_creative_memory.sql`，当前仓库缺少该文件。继续用旧库需从其原版本找回原始迁移；也可改用新的独立库。不要编辑已执行的迁移或用空文件补 V18。
 
+升级到 V28 前先停止旧版 API 和 Worker。V28 移除出图方案的数据结构，已采纳或被视频、图片反馈引用的分镜图继续保留。仅属于方案的出图任务与候选图记录会被删除，对应媒体文件由清理任务移除。
+
+升级到 V30 前，停止旧版 API 和 Worker，并备份数据库。V30 移除应用 schema 内的外键，保留数据、主键、唯一约束、检查约束与索引。此后由业务事务校验关系，在删除项目、分集或重新拆镜时显式清理相关数据。API 和 Worker 需一起升级。
+
 ## 验收入口
 
 先安装前端和契约依赖，并准备本机 Chrome：
@@ -35,6 +39,7 @@ npm ci --prefix packages/contracts
 
 | 证据 | 实际结果与范围 |
 | --- | --- |
+| 2026-11-14 数据库模式全量 Mock | 独立 PostgreSQL 16 上，203 项后端、23 项组件、20 项 Chrome 用例通过，契约、类型、构建与 HTTP 崩溃恢复通过。同次本地验证另外通过 MCP 的 17 项 STDIO 工具检查。 |
 | [2026-11-05 数据库模式全量 Mock](archive/image-learning.md#2026-11-05-验收结果) | 独立 PostgreSQL 16：189 项后端、17 项组件、17 项 Chrome 用例通过，含类型、契约、构建和 HTTP 崩溃恢复。失败、跳过和浏览器重试均为零。 |
 | [RabbitMQ 专项](archive/backend-phase7.md#验证入口与证据边界) · [Redis 专项](archive/backend-phase8.md#验证入口与证据) | 本机真实 RabbitMQ 和 Redis，生成走 Mock；分别验证双 Worker、死信与恢复、共享准入与故障关闭。与上面的数据库模式回归分开统计。本机记录未覆盖 Docker / Testcontainers 启动分支。 |
 | [历史真实文本](archive/backend-phase3.md#验证与边界) · [图片](archive/backend-phase4.md#验证) · [视频](archive/backend-phase5.md#验证与费用边界) | 图片验收只生成一张，参考图协议使用本机 fixture；视频只有一次真实生成请求，另有一次供应商调用前的本地拒绝，共两个本地 attempt。外部任务恢复的常规验收只用本机 HTTP fixture。 |

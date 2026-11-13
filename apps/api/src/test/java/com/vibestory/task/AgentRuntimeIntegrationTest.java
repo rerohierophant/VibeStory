@@ -44,7 +44,7 @@ class AgentRuntimeIntegrationTest extends PostgresSupport {
     final String source = "独立上下文标记。沈夜推开便利店的门，店员递来一张旧纸条，提醒他不要前往长街尽头。";
 
     @BeforeEach void setup() throws Exception {
-        db.execute("truncate app_user,storage_cleanup restart identity cascade");
+        resetDatabase(db);
         alice = viewer("loop@agent.test");
         bob = viewer("other@agent.test");
         project = db.fetchOne("insert into project(user_id,name,visual_type) values (?,'工具循环','realistic') returning id", alice.id()).get(0, Long.class);
@@ -68,6 +68,42 @@ class AgentRuntimeIntegrationTest extends PostgresSupport {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/agent/runs/" + run).with(user(bob))).andExpect(status().isNotFound());
     }
 
+    @Test void aShortDramaRequestCreatesOneProjectAndOnePlanAcrossMessageReplay() throws Exception {
+        UUID chatId = UUID.randomUUID();
+        UUID key = UUID.randomUUID();
+        String instruction = "帮我做个雨夜悬疑主题的短剧";
+        String path = "/api/agent/conversations/" + chatId + "/messages";
+        var first = json.readTree(mvc.perform(multipart(path).param("requestKey", key.toString())
+            .param("instruction", instruction).with(user(alice)).with(csrf()))
+            .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        var result = first.path("messages").get(0).path("result");
+        String projectId = result.path("projectId").asText();
+        String planId = result.path("projectPlanId").asText();
+        String projectPath = "/api/projects/" + projectId;
+        String creativePath = projectPath + "/creative";
+        assertThat(getJson(projectPath).path("name").asText()).isEqualTo("雨夜悬疑");
+        var pending = getJson(creativePath);
+        assertThat(pending.path("source").path("kind").asText()).isEqualTo("IDEA");
+        assertThat(pending.path("source").path("ideaText").asText()).isEqualTo(instruction);
+        assertThat(pending.path("plan").path("state").asText()).isEqualTo("QUEUED");
+        assertThat(pending.path("plan").path("id").asText()).isEqualTo(planId);
+
+        var replay = json.readTree(mvc.perform(multipart(path).param("requestKey", key.toString())
+            .param("instruction", instruction).with(user(alice)).with(csrf()))
+            .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(replay.path("messages")).hasSize(1);
+        assertThat(replay.path("messages").get(0).path("result")).isEqualTo(result);
+        assertThat(db.fetchCount(db.selectFrom("project").where("name='雨夜悬疑'"))).isEqualTo(1);
+        assertThat(db.fetchCount(db.selectFrom("creative_source").where("project_id=?", Long.parseLong(projectId)))).isEqualTo(1);
+        assertThat(db.fetchCount(db.selectFrom("creative_turn"))).isEqualTo(1);
+        mvc.perform(get(creativePath).with(user(bob))).andExpect(status().isNotFound());
+
+        worker.runOne();
+        assertThat(getJson(creativePath).path("plan").path("state").asText()).isEqualTo("READY");
+        assertThat(getJson(creativePath + "/plan/" + planId).path("episodes")).isNotEmpty();
+        assertThat(getJson(projectPath).path("episodes")).isEmpty();
+    }
+
     @Test void mainWaitsForIndependentScriptAndStoryboardAndContinuesAfterReload() throws Exception {
         UUID key = UUID.randomUUID();
         var first = chat("先整理本集剧本，然后规划分镜", key).path("messages").get(0);
@@ -80,7 +116,7 @@ class AgentRuntimeIntegrationTest extends PostgresSupport {
         runtime.resumeOne();
         var transcript = getJson("/api/agent/conversations/" + conversation);
         assertThat(transcript.path("messages").get(0).path("execution").path("state").asText()).isEqualTo("DONE");
-        assertThat(transcript.path("messages").get(0).path("result").path("message").asText()).contains("审阅");
+        assertThat(transcript.path("messages").get(0).path("result").path("message").asText()).contains("剧本与分镜草案已就绪");
         var children = db.fetch("select * from agent_run where role <> 'MAIN' order by created_at");
         assertThat(children).hasSize(2);
         assertThat(children.get(0).get("session_id")).isNotEqualTo(children.get(1).get("session_id")).isNotEqualTo(conversation);

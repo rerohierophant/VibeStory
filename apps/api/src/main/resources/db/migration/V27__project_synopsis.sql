@@ -1,0 +1,1 @@
+ALTER TABLE project ADD COLUMN synopsis TEXT NOT NULL DEFAULT '';

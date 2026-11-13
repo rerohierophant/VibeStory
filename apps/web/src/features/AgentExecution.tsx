@@ -1,5 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
-import { api, type Schema } from '@/lib/api';
+import type { Schema } from '@/lib/api';
 
 const labels: Record<string, string> = {
   QUEUED: '等待执行', RUNNING: '执行中', WAITING: '等待专业任务', DONE: '已完成', FAILED: '失败', UNKNOWN: '结果未知',
@@ -25,13 +24,4 @@ export function ExecutionRecord({ execution }: { execution?: Schema['Execution']
     {!!execution.context?.compactions && <p className="mt-2">已整理上下文 {execution.context.compactions} 次，完整记录保留</p>}
     {execution.error && <p className="mt-1 text-error-soft">{execution.error}</p>}
   </details>;
-}
-
-export function ChildExecutionRecord({ id, userId }: { id?: string; userId?: string }) {
-  const query = useQuery({
-    queryKey: ['agent-execution', userId, id], enabled: !!id && !!userId, retry: false,
-    queryFn: ({ signal }) => api<Schema['Execution']>(`/api/agent/runs/${id}`, 'GET', undefined, signal),
-    refetchInterval: state => !state.state.data || ['QUEUED', 'RUNNING', 'WAITING'].includes(state.state.data.state ?? '') ? 2500 : false,
-  });
-  return <ExecutionRecord execution={query.data} />;
 }

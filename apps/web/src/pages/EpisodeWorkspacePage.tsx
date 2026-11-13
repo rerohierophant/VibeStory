@@ -2,11 +2,11 @@ import { NavLink, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Badge } from '@/components/Badge';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
-import { EpisodeWorkflowStatus } from '@/features/EpisodeWorkflowStatus';
 import { StoryTab } from '@/features/StoryTab';
 import { StoryboardTab } from '@/features/StoryboardTab';
 import { VideoTab } from '@/features/VideoTab';
-import { useEpisodeShots, useProject, useStore } from '@/lib/store';
+import { episodeBreakdownProgress } from '@/lib/episodeProgress';
+import { useEpisodeShots, useProject } from '@/lib/store';
 
 const tabs = [
   { key: 'story', label: '故事' },
@@ -17,7 +17,6 @@ const tabs = [
 export function EpisodeWorkspacePage() {
   const { id = '', episodeId = '', tab = 'story' } = useParams();
   const project = useProject(id);
-  const { confirmAll, workspaceReadOnly } = useStore();
   const shots = useEpisodeShots(episodeId);
   const navigate = useNavigate();
 
@@ -40,9 +39,11 @@ export function EpisodeWorkspacePage() {
   }
 
   const activeTab = tabs.some((t) => t.key === tab) ? tab : 'story';
+  const breakdown = episodeBreakdownProgress(episode.breakdown, shots.length);
   const hasShots = shots.length > 0;
-  const breakdownLabel = hasShots ? '已拆解' : episode.breakdown === 'running' ? '拆解中' : '未拆解';
-  const confirmed = shots.filter((s) => s.status === 'confirmed').length;
+  const breakdownLabel = breakdown === 'running' ? '拆解中' : breakdown === 'done' ? '已拆解' : '未拆解';
+  const withFrame = shots.filter((s) => s.selectedImageId);
+  const confirmed = withFrame.filter((s) => s.status === 'confirmed').length;
   const withVideo = shots.filter((s) => s.video.ready).length;
 
   return (
@@ -56,22 +57,20 @@ export function EpisodeWorkspacePage() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="truncate text-sm font-medium">{episode.title}</h1>
-                <Badge tone={hasShots ? 'success' : 'muted'}>{breakdownLabel}</Badge>
+                <Badge tone={breakdown === 'running' ? 'accent' : breakdown === 'done' ? 'success' : 'muted'}>{breakdownLabel}</Badge>
               </div>
               <p className="mt-0.5 truncate text-[11px] text-muted">
-                第 {episode.index} 集 · {shots.length} 镜 · {withVideo} 视频
+                第 {episode.index} 集 · {shots.length} 镜 · {withVideo} 镜已出片
               </p>
             </div>
           </div>
 
-          <div className="ml-auto flex items-center gap-2 text-[11px] text-muted">
+          {withFrame.length > 0 && <div className="ml-auto flex items-center gap-2 text-[11px] text-muted">
             <span>
-              {confirmed}/{shots.length} 已确认
+              已确认 {confirmed}/{withFrame.length}
             </span>
-          </div>
+          </div>}
         </div>
-
-        <div className="px-8 pb-2 empty:hidden"><EpisodeWorkflowStatus episodeId={episode.id} /></div>
 
         <nav className="flex items-center gap-1 px-6">
           {tabs.map((t) => {
@@ -105,18 +104,8 @@ export function EpisodeWorkspacePage() {
             );
           })}
 
-          {hasShots && (
+          {hasShots && activeTab !== 'story' && (
             <div className="ml-auto flex items-center gap-2 pb-2 pr-2">
-              <button
-                type="button"
-                onClick={() => confirmAll(episode.id)}
-                disabled={workspaceReadOnly || confirmed === shots.length}
-                className="text-[11px] text-muted transition hover:text-fg disabled:cursor-not-allowed disabled:opacity-50"
-                title="把这一集所有待确认镜头标记为已确认"
-              >
-                全部确认
-              </button>
-              <span className="h-3 w-px bg-stroke/30" />
               <button
                 type="button"
                 onClick={() => navigate(`/projects/${project.id}/episodes`)}
@@ -133,13 +122,13 @@ export function EpisodeWorkspacePage() {
         {activeTab === 'story' && <StoryTab episodeId={episode.id} />}
         {activeTab === 'storyboard' &&
           (hasShots ? (
-            <StoryboardTab episodeId={episode.id} projectId={project.id} />
+            <StoryboardTab key={episode.id} episodeId={episode.id} projectId={project.id} />
           ) : (
             <Navigate to={`/projects/${project.id}/episodes/${episode.id}/story`} replace />
           ))}
         {activeTab === 'video' &&
           (hasShots ? (
-            <VideoTab episodeId={episode.id} projectId={project.id} />
+            <VideoTab key={episode.id} episodeId={episode.id} projectId={project.id} />
           ) : (
             <Navigate to={`/projects/${project.id}/episodes/${episode.id}/story`} replace />
           ))}

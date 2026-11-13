@@ -1,5 +1,7 @@
 import type { CameraMove, ShotSize } from './types';
 
+export const DEFAULT_SHOT_DURATION_MS = 6000;
+
 export interface ShotDraft {
   description: string;
   dialogue: string;
@@ -141,7 +143,7 @@ export function splitIntoShots(
         sceneName,
         shotSize,
         cameraMove: cameraMoves[index % cameraMoves.length],
-        durationMs: quote ? 4000 : 3000 + (index % 3) * 1000,
+        durationMs: DEFAULT_SHOT_DURATION_MS,
       });
     }
   }

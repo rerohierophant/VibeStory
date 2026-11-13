@@ -36,7 +36,6 @@ public class BreakdownService {
     public TaskService.Submission submit(long userId, long episodeId, boolean replaceExisting) {
         long projectId = scope.lockEpisode(userId, episodeId);
         var episode = db.fetchOne("select * from episode where id = ?", episodeId);
-        requireVariantsArchived(episodeId);
         String story = episode.get("story_content", String.class);
         if (story.strip().length() < 20) throw ApiException.badRequest("正文至少需要 20 字符");
         var active = db.fetchOne("select * from task where episode_id = ? and type = 'BREAKDOWN' and status in ('QUEUED','RUNNING')", episodeId);
@@ -87,22 +86,19 @@ public class BreakdownService {
         var episode = db.fetchOne("select * from episode where id = ? and user_id = ? for update", episodeId, userId);
         if (episode == null || !Long.valueOf(taskId).equals(episode.get("breakdown_task_id", Long.class)))
             return new Outcome(false, "BREAKDOWN_SUPERSEDED", "本次拆解已被取代");
-        if (shots.hasActiveImageVariants(episodeId)) {
-            db.execute("update episode set breakdown_state = 'IDLE', breakdown_task_id = null, updated_at = now(), version = version + 1 where id = ?", episodeId);
-            return new Outcome(false, "BREAKDOWN_VARIANTS_ACTIVE", "请先归档本集的分镜出图方案");
-        }
         if (!sameSource(episode, input)) {
             db.execute("update episode set breakdown_state = 'IDLE', breakdown_task_id = null, updated_at = now(), version = version + 1 where id = ?", episodeId);
             return new Outcome(false, "BREAKDOWN_SOURCE_CHANGED", "正文或镜头在拆解期间发生修改，请确认后重新拆解");
         }
-        var ids = shots.replace(userId, projectId, episodeId, result.shots());
+        var plannedShots = result.shots().stream().map(TextProvider.ShotDraft::withDefaultDuration).toList();
+        var ids = shots.replace(userId, projectId, episodeId, plannedShots);
         db.execute("""
             update episode set breakdown_state = 'DONE', breakdown_task_id = null, shot_revision = shot_revision + 1,
                 updated_at = now(), version = version + 1 where id = ?
             """, episodeId);
         try {
             db.execute("update task set output_snapshot = ?::jsonb where id = ?",
-                json.writeValueAsString(Map.of("shotIds", ids, "shots", result.shots(), "storyRevision", input.storyRevision())), taskId);
+                json.writeValueAsString(Map.of("shotIds", ids, "shots", plannedShots, "storyRevision", input.storyRevision())), taskId);
         } catch (JsonProcessingException error) { throw new IllegalStateException(error); }
         scope.touchProject(projectId, userId);
         return new Outcome(true, null, null);
@@ -112,7 +108,6 @@ public class BreakdownService {
     public void prepareRetry(long userId, Record task) {
         long episodeId = task.get("episode_id", Long.class);
         scope.lockEpisode(userId, episodeId);
-        requireVariantsArchived(episodeId);
         var episode = db.fetchOne("select * from episode where id = ?", episodeId);
         var input = input(task.get("input_snapshot", String.class));
         if (!sameSource(episode, input)) throw ApiException.conflict("原任务的正文或镜头输入已变化，请重新确认并提交拆解");
@@ -125,10 +120,6 @@ public class BreakdownService {
     @Transactional
     public void failed(long taskId, long episodeId) {
         db.execute("update episode set breakdown_state = 'IDLE', breakdown_task_id = null, updated_at = now(), version = version + 1 where id = ? and breakdown_task_id = ?", episodeId, taskId);
-    }
-
-    private void requireVariantsArchived(long episodeId) {
-        if (shots.hasActiveImageVariants(episodeId)) throw ApiException.conflict("请先归档本集的分镜出图方案");
     }
 
     private boolean sameSource(Record episode, TextProvider.Input input) {

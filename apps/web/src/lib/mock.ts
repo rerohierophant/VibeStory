@@ -9,6 +9,7 @@ import type {
   State,
 } from './types';
 import { uid } from './id';
+import { DEFAULT_SHOT_DURATION_MS } from './splitter';
 
 const now = Date.now();
 const hour = 3_600_000;
@@ -205,7 +206,7 @@ function img(label: string, seed: string, hoursAgo: number): ShotImage {
 
 type ShotSeed = Omit<
   Shot,
-  'id' | 'projectId' | 'episodeId' | 'images' | 'selectedImageId' | 'imageState' | 'video'
+  'id' | 'projectId' | 'episodeId' | 'images' | 'selectedImageId' | 'imageState' | 'video' | 'durationMs'
 > & { episodeIndex: number };
 
 const shotSeed: ShotSeed[] = [
@@ -213,65 +214,65 @@ const shotSeed: ShotSeed[] = [
   {
     episodeIndex: 1, seq: 1, sceneName: '雨夜街道', shotSize: '全景', cameraMove: '固定',
     description: '暴雨中的街道，路灯在积水里拉出长影，一个撑黑伞的身影从画面右侧入。',
-    dialogue: '', durationMs: 4000, status: 'confirmed', characterNames: ['沈夜'],
+    dialogue: '', status: 'confirmed', characterNames: ['沈夜'],
   },
   {
     episodeIndex: 1, seq: 2, sceneName: '雨夜街道', shotSize: '中景', cameraMove: '推',
     description: '沈夜站在便利店门口，伞沿滴水。镜头缓慢推近，她抬头看灯。',
-    dialogue: '', durationMs: 3500, status: 'confirmed', characterNames: ['沈夜'],
+    dialogue: '', status: 'confirmed', characterNames: ['沈夜'],
   },
   {
     episodeIndex: 1, seq: 3, sceneName: '雨夜街道', shotSize: '近景', cameraMove: '固定',
     description: '闪回：三年前的同一盏路灯下，行李箱被扔在积水的路面上。',
-    dialogue: '', durationMs: 3000, status: 'confirmed', characterNames: ['沈夜'],
+    dialogue: '', status: 'confirmed', characterNames: ['沈夜'],
   },
   // 第二集 · 便利店里
   {
     episodeIndex: 2, seq: 1, sceneName: '便利店', shotSize: '中景', cameraMove: '固定',
     description: '自动门滑开，女孩抱牛奶盒走出来，撞上沈夜，牛奶盒晃了一下。',
-    dialogue: '对不起。', durationMs: 3000, status: 'confirmed', characterNames: ['便利店女孩', '沈夜'],
+    dialogue: '对不起。', status: 'confirmed', characterNames: ['便利店女孩', '沈夜'],
   },
   {
     episodeIndex: 2, seq: 2, sceneName: '便利店', shotSize: '特写', cameraMove: '固定',
     description: '女孩抬头，看清沈夜的脸，瞳孔微微放大。',
-    dialogue: '姐姐，你……长得好像我妈妈。', durationMs: 4500, status: 'confirmed', characterNames: ['便利店女孩'],
+    dialogue: '姐姐，你……长得好像我妈妈。', status: 'confirmed', characterNames: ['便利店女孩'],
   },
   {
     episodeIndex: 2, seq: 3, sceneName: '便利店', shotSize: '近景', cameraMove: '拉',
     description: '沈夜的表情从平静到震动，镜头缓缓拉远，把她和整条空街一起收进画面。',
-    dialogue: '', durationMs: 4000, status: 'draft', characterNames: ['沈夜'],
+    dialogue: '', status: 'draft', characterNames: ['沈夜'],
   },
   // 第三集 · 旧宅
   {
     episodeIndex: 3, seq: 1, sceneName: '旧宅客厅', shotSize: '全景', cameraMove: '移',
     description: '铁门虚掩，镜头沿着湿漉漉的院子横移，桂花树在雨里摇晃，客厅灯亮着。',
-    dialogue: '', durationMs: 5000, status: 'confirmed', characterNames: [],
+    dialogue: '', status: 'confirmed', characterNames: [],
   },
   {
     episodeIndex: 3, seq: 2, sceneName: '旧宅客厅', shotSize: '中景', cameraMove: '固定',
     description: '继母坐在沙发上数单据，听见脚步声，抬头。',
-    dialogue: '你回来做什么？', durationMs: 3500, status: 'confirmed', characterNames: ['继母'],
+    dialogue: '你回来做什么？', status: 'confirmed', characterNames: ['继母'],
   },
   {
     episodeIndex: 3, seq: 3, sceneName: '旧宅客厅', shotSize: '近景', cameraMove: '固定',
     description: '一份文件被放上茶几，纸角压住单据。伞尖还在滴水，水珠落在地板上。',
-    dialogue: '', durationMs: 3000, status: 'confirmed', characterNames: ['沈夜'],
+    dialogue: '', status: 'confirmed', characterNames: ['沈夜'],
   },
   {
     episodeIndex: 3, seq: 4, sceneName: '旧宅客厅', shotSize: '中景', cameraMove: '推',
     description: '沈夜直视继母，说出台词。镜头极慢推进，背景虚化。',
-    dialogue: '这栋房子的产权，是我妈的名字。明天之前，请你搬走。', durationMs: 6000, status: 'draft', characterNames: ['沈夜', '继母'],
+    dialogue: '这栋房子的产权，是我妈的名字。明天之前，请你搬走。', status: 'draft', characterNames: ['沈夜', '继母'],
   },
   // 第四集 · 天亮
   {
     episodeIndex: 4, seq: 1, sceneName: '旧宅客厅', shotSize: '特写', cameraMove: '固定',
     description: '继母的手在单据上收紧，指节发白。',
-    dialogue: '', durationMs: 2500, status: 'draft', characterNames: ['继母'],
+    dialogue: '', status: 'draft', characterNames: ['继母'],
   },
   {
     episodeIndex: 4, seq: 2, sceneName: '雨夜街道', shotSize: '远景', cameraMove: '固定',
     description: '雨停，天边裂开一道浅亮。沈夜站在门口，门在身后缓缓合上。',
-    dialogue: '', durationMs: 5000, status: 'draft', characterNames: ['沈夜'],
+    dialogue: '', status: 'draft', characterNames: ['沈夜'],
   },
 ];
 
@@ -287,6 +288,8 @@ export function buildDemoShots(): Shot[] {
 
     return {
       ...rest,
+      durationMs: DEFAULT_SHOT_DURATION_MS,
+      status: generated ? rest.status : 'draft',
       id: `shot_${episodeIndex}_${base.seq}`,
       projectId: demoProject.id,
       episodeId: `ep_demo_${episodeIndex}`,

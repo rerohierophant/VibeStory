@@ -1,5 +1,42 @@
 import { test, expect } from '@playwright/test';
+import { isAgentReply, readAgentReply } from './agent-reply';
 import { writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+
+test('a short drama request starts planning from the Agent and links to the finished draft', async ({ page, context, baseURL }) => {
+  await context.route('**/*', route => route.request().url().startsWith(baseURL + '/') ? route.continue() : route.abort());
+  await page.goto('/login');
+  await page.getByLabel('邮箱', { exact: true }).fill(process.env.WEB_TEST_EMAIL!);
+  await page.getByLabel('密码', { exact: true }).fill(process.env.WEB_TEST_PASSWORD!);
+  await page.getByRole('button', { name: '进入工作台' }).click();
+  await expect(page).toHaveURL(/\/$/);
+  const openAgent = page.getByRole('button', { name: '打开 Agent 对话' });
+  await openAgent.click();
+  const agent = page.getByRole('complementary', { name: 'Agent 对话' });
+  const instruction = '帮我做个雨夜悬疑主题的短剧';
+  const posted = page.waitForResponse(isAgentReply);
+  await agent.getByLabel('Agent 指令').fill(instruction);
+  await agent.getByRole('button', { name: '发送', exact: true }).click();
+  const response = await posted;
+  expect(response.ok(), await response.text()).toBe(true);
+  const { projectId, projectPlanId } = (await readAgentReply(response)).transcript.messages!.at(-1)!.result!;
+  expect(projectPlanId).toBeTruthy();
+  const progress = agent.getByRole('region', { name: '短剧创作进度' });
+  await expect(progress).toContainText('已创建《雨夜悬疑》并保存故事想法');
+  await expect(progress.getByRole('status')).toHaveText('分集草案已就绪，待审阅。');
+  await page.reload();
+  await openAgent.click();
+  const review = progress.getByRole('link', { name: '前往项目概览审阅' });
+  await expect(review).toHaveAttribute('href', `/projects/${projectId}`);
+  await review.click();
+  await expect(page).toHaveURL(`/projects/${projectId}`);
+  const setup = page.getByRole('region', { name: '创作准备' });
+  await expect(setup.getByTestId('saved-story-idea')).toHaveText(instruction);
+  await expect(setup.getByRole('button', { name: '确认分集与素材' })).toBeVisible();
+  await setup.getByText('审阅本集剧本', { exact: true }).first().click();
+  await expect(setup.getByText(/【转折】/).first()).toBeVisible();
+  expect(await (await page.request.get(`/api/projects/${projectId}/episodes`)).json()).toEqual([]);
+});
 
 test('import long manuscript and hand off between persistent creative agents and media tools', async ({ page, context, baseURL }, testInfo) => {
   await context.route('**/*', route => route.request().url().startsWith(baseURL + '/') ? route.continue() : route.abort());
@@ -7,7 +44,6 @@ test('import long manuscript and hand off between persistent creative agents and
   await page.getByLabel('邮箱', { exact: true }).fill(process.env.WEB_TEST_EMAIL!);
   await page.getByLabel('密码', { exact: true }).fill(process.env.WEB_TEST_PASSWORD!);
   await page.getByRole('button', { name: '进入工作台' }).click();
-  await expect(page.getByText('后端已连接', { exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/$/);
   const csrf = await (await page.request.get('/api/auth/csrf')).json();
   const headers = { [csrf.headerName]: csrf.token };
@@ -17,51 +53,51 @@ test('import long manuscript and hand off between persistent creative agents and
   const projectPath = `/api/projects/${projectId}/creative`;
   const opening = '第一集 雨巷\n沈夜走进雨巷，看见路灯下的纸条。\n他打开便利店的门，店员转过头来。';
   const chapter = '许星遥穿过旧宅的长廊，留意墙上的旧钟与刻痕。她停下脚步，仔细核对前一夜留下的纸条。';
-  const manuscript = opening + '\n\n第二集 旧宅\n' + Array.from({ length: 210 }, (_, i) => `${i + 1}　${chapter}`).join('\n');
+  const manuscript = opening + '\n\n第二集 旧宅\n角色：许星遥\n场景：旧宅\n' + Array.from({ length: 210 }, (_, i) => `${i + 1}　${chapter}`).join('\n');
   expect(manuscript.length).toBeGreaterThan(6000);
   await page.goto(`/projects/${projectId}`);
-  const importer = page.getByRole('region', { name: '整稿分集' });
+  const importer = page.getByRole('region', { name: '创作准备' });
   await importer.getByLabel('整稿文件').setInputFiles({ name: '雨巷长稿.md', mimeType: 'text/markdown', buffer: Buffer.from(manuscript) });
   await expect(importer.getByText(/雨巷长稿\.md/)).toBeVisible();
   await importer.getByRole('button', { name: '生成分集草案' }).click();
   await expect(importer.getByText(/分集草案包含/)).toBeVisible();
   await importer.getByText('核对原文边界', { exact: true }).first().click();
   await expect(importer.getByText(/开头.*第一集 雨巷/)).toBeVisible();
+  await expect(importer.getByText('许星遥', { exact: true })).toBeVisible();
+  await expect(importer.getByText('旧宅', { exact: true })).toBeVisible();
   const planned = await (await page.request.get(projectPath)).json();
   const planPreview = await (await page.request.get(`${projectPath}/plan/${planned.plan.id}`)).json();
   expect(planPreview.episodes.at(-1).end).toBe(manuscript.length);
   const accepting = page.waitForResponse(response => response.url().endsWith('/accept') && response.request().method() === 'POST');
-  await importer.getByRole('button', { name: '确认草案并创建分集' }).click();
+  await importer.getByRole('button', { name: '确认分集与素材' }).click();
   const acceptedResponse = await accepting;
   expect(acceptedResponse.ok(), await acceptedResponse.text()).toBe(true);
   const accepted = await acceptedResponse.json();
   const episodeId = accepted.appliedIds[0];
+  await expect(page.getByRole('region', { name: '角色库', exact: true }).getByText('许星遥', { exact: true })).toBeVisible();
   const episodePath = `/api/episodes/${episodeId}/creative`;
   await page.goto(`/projects/${projectId}/episodes/${episodeId}/story`);
-  const creative = page.getByRole('region', { name: '本集创作会话' });
-  await creative.getByRole('button', { name: '整理本集剧本' }).click();
-  await expect(creative.getByRole('button', { name: '审阅脚本' })).toBeVisible();
+  const agent = page.getByRole('complementary', { name: 'Agent 对话' });
+  const script = await page.request.post(`${episodePath}/script`, { headers, data: { requestKey: randomUUID() } });
+  expect(script.ok(), await script.text()).toBe(true);
+  await expect.poll(async () => (await (await page.request.get(episodePath)).json()).script.state).toBe('READY');
   const initial = await (await page.request.get(episodePath)).json();
   const initialScript = await (await page.request.get(`${episodePath}/script/${initial.script.id}`)).json();
-  await creative.getByRole('button', { name: '审阅脚本' }).click();
-  await expect(creative.getByText(/沈夜走进雨巷/)).toBeVisible();
+  expect(initialScript.script).toContain('沈夜走进雨巷');
 
-  const openAgent = () => page.getByRole('button', { name: 'Agent', exact: true }).click();
-  await openAgent();
-  const agent = page.getByRole('complementary', { name: 'Agent 对话' });
   const send = async (instruction: string) => {
-    const response = page.waitForResponse(r => r.url().endsWith('/messages') && r.request().method() === 'POST', { timeout: 15000 });
+    const response = page.waitForResponse(isAgentReply, { timeout: 15000 });
     await agent.getByLabel('Agent 指令').fill(instruction);
     await agent.getByRole('button', { name: '发送', exact: true }).click();
     const reply = await response;
     expect(reply.ok(), await reply.text()).toBe(true);
-    const result = await reply.json();
-    expect(result.conversation.id).toBe(initial.mainSessionId);
-    expect(result.messages.at(-1).error).toBeUndefined();
-    const message = result.messages.at(-1);
+    const { transcript: result } = await readAgentReply(reply);
+    expect(result.conversation!.id).toBe(initial.mainSessionId);
+    expect(result.messages!.at(-1)!.error).toBeUndefined();
+    const message = result.messages!.at(-1)!;
     if (message.execution?.id) {
       await expect.poll(async () => (await (await page.request.get(`/api/agent/runs/${message.execution.id}`)).json()).state).toBe('DONE');
-      const completed = await (await page.request.get(`/api/agent/conversations/${result.conversation.id}`)).json();
+      const completed = await (await page.request.get(`/api/agent/conversations/${result.conversation!.id}`)).json();
       const receipt = completed.messages.find((item: { id: string }) => item.id === message.id);
       expect(receipt.error).toBeUndefined();
       return receipt.result;
@@ -79,7 +115,7 @@ test('import long manuscript and hand off between persistent creative agents and
   const revised = await (await page.request.get(episodePath)).json();
   const revisedScript = await (await page.request.get(`${episodePath}/script/${revised.script.id}`)).json();
   await send('规划本集分镜');
-  await expect(creative.getByRole('button', { name: '审阅分镜草案' })).toBeVisible();
+  await expect.poll(async () => (await (await page.request.get(episodePath)).json()).storyboard?.state).toBe('READY');
   const state = await (await page.request.get(episodePath)).json();
   expect(new Set([state.mainSessionId, state.scriptSessionId, state.storyboardSessionId]).size).toBe(3);
   expect(state.storyboard.scriptId).toBe(revised.script.id);
@@ -87,17 +123,12 @@ test('import long manuscript and hand off between persistent creative agents and
   const storyboard = await (await page.request.get(`${episodePath}/storyboard/${state.storyboard.id}`)).json();
 
   await page.reload();
-  await openAgent();
   await expect(agent.getByRole('heading', { name: /主会话/ })).toBeVisible();
   expect((await send('继续')).message).toContain(state.storyboard.id);
-  await agent.getByRole('button', { name: '收起 Agent' }).click();
-  await creative.getByRole('button', { name: '审阅分镜草案' }).click();
-  await creative.getByRole('button', { name: '应用本集分镜草案' }).click();
-  await expect(creative.getByText(/已应用/)).toBeVisible();
-  await openAgent();
-  await send('确认全部镜头');
+  expect((await send(`应用分镜草案 ${state.storyboard.id}`)).message).toContain('已应用分镜草案');
   const image = await send('给第 1 镜生成分镜图');
   await expect.poll(async () => (await (await page.request.get(`/api/tasks/${image.taskId}`)).json()).ready).toBe(true);
+  await send('确认第 1 镜');
   const video = await send('给第 1 镜生成视频');
   await expect.poll(async () => (await (await page.request.get(`/api/tasks/${video.taskId}`)).json()).ready).toBe(true);
   const shots = await (await page.request.get(`/api/episodes/${episodeId}/shots`)).json();
@@ -108,4 +139,78 @@ test('import long manuscript and hand off between persistent creative agents and
     manuscript, episodeSource, planPreview, initial, initialScript, revised, revisedScript,
     storyboard, state, revision, planned, accepted,
   }, null, 2) + '\n');
+});
+
+test('a new personal project can start from an idea and review it before creating episodes and assets', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByLabel('邮箱', { exact: true }).fill(process.env.WEB_TEST_EMAIL!);
+  await page.getByLabel('密码', { exact: true }).fill(process.env.WEB_TEST_PASSWORD!);
+  await page.getByRole('button', { name: '进入工作台' }).click();
+  await expect(page).toHaveURL(/\/$/);
+  const csrf = await (await page.request.get('/api/auth/csrf')).json();
+  const projectResponse = await page.request.post('/api/projects', {
+    headers: { [csrf.headerName]: csrf.token }, data: { name: '故事想法验收', visualType: 'realistic' },
+  });
+  expect(projectResponse.ok()).toBe(true);
+  const projectId = (await projectResponse.json()).id;
+  await page.goto(`/projects/${projectId}`);
+  const setup = page.getByRole('region', { name: '创作准备' });
+  const story = page.getByRole('region', { name: '故事简介' });
+  const manualCreate = page.getByRole('button', { name: /新建一集/ });
+  await expect(setup.getByRole('heading', { name: '准备你的故事' })).toBeVisible();
+  await expect(manualCreate).toHaveCount(0);
+  await page.getByRole('button', { name: '折叠侧边栏' }).click();
+  await expect(manualCreate).toHaveCount(0);
+  await page.getByRole('button', { name: '展开侧边栏' }).click();
+  await page.goto(`/projects/${projectId}/episodes`);
+  await expect(manualCreate).toHaveCount(0);
+  await page.getByRole('link', { name: '去准备故事' }).click();
+  await expect(story).toBeHidden();
+  await setup.getByRole('button', { name: '只有故事想法' }).click();
+  const idea = '一位夜班店员发现钟表每天停在同一刻。\n角色：夜班店员\n场景：钟表店';
+  const ideaInput = setup.getByLabel('故事想法', { exact: true });
+  const savedIdea = setup.getByTestId('saved-story-idea');
+  await ideaInput.fill(idea);
+  await setup.getByRole('button', { name: '保存想法' }).click();
+  await expect(savedIdea).toHaveText(idea);
+  await setup.getByRole('button', { name: '生成分集草案' }).click();
+  await expect(setup.getByRole('button', { name: '确认分集与素材' })).toBeVisible();
+  const planPath = `/api/projects/${projectId}/creative`;
+  const initial = (await (await page.request.get(planPath)).json()).plan;
+  const agent = page.getByRole('complementary', { name: 'Agent 对话' });
+  await agent.getByLabel('Agent 指令').fill('规划项目分集：保留钟表店的开场');
+  await agent.getByRole('button', { name: '发送', exact: true }).click();
+  await expect(agent.getByText('已登记项目分集规划', { exact: true })).toBeVisible();
+  await expect.poll(async () => {
+    const { plan } = await (await page.request.get(planPath)).json();
+    return plan?.id !== initial.id && plan?.state === 'READY';
+  }).toBe(true);
+  await page.reload();
+  await expect(savedIdea).toHaveText(idea);
+  const editIdea = setup.getByRole('button', { name: '编辑想法' });
+  await editIdea.click();
+  await expect(ideaInput).toHaveValue(idea);
+  await expect(setup.getByRole('button', { name: '保存想法' })).toBeDisabled();
+  await ideaInput.fill('这段没有保存的改动应当在取消编辑后被放弃。');
+  await setup.getByRole('button', { name: '取消编辑' }).click();
+  await expect(savedIdea).toHaveText(idea);
+  await setup.getByText('审阅本集剧本', { exact: true }).click();
+  await expect(setup.getByText(/【转折】/)).toBeVisible();
+  await expect(setup.getByText('夜班店员', { exact: true })).toBeVisible();
+  await expect(setup.getByText('钟表店', { exact: true })).toBeVisible();
+  expect(await (await page.request.get(`/api/projects/${projectId}/episodes`)).json()).toEqual([]);
+  expect(await (await page.request.get(`/api/projects/${projectId}/characters`)).json()).toEqual([]);
+
+  await setup.getByRole('button', { name: '确认分集与素材' }).click();
+  await expect(page.getByRole('region', { name: '场景库', exact: true }).getByText('钟表店', { exact: true })).toBeVisible();
+  await expect(manualCreate).toHaveCount(0);
+  await expect(story.getByRole('link', { name: /剧本节选/ })).toBeVisible();
+  await expect(editIdea).toBeHidden();
+  await setup.getByText('创作准备', { exact: true }).click();
+  await expect(editIdea).toBeVisible();
+  await page.reload();
+  await expect(story.getByRole('link', { name: /剧本节选/ })).toBeVisible();
+  await expect(editIdea).toBeHidden();
+  await story.getByRole('link', { name: /剧本节选.*故事的开端/ }).click();
+  await expect(page.getByLabel('剧本正文')).toHaveValue(/夜班店员发现钟表/);
 });

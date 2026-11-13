@@ -1,10 +1,10 @@
 package com.vibestory.task;
 
-import com.vibestory.agent.EpisodeWorkflow;
-import com.vibestory.batch.GenerationBatch;
 import com.vibestory.auth.Viewer;
+import com.vibestory.common.ApiException;
 import com.vibestory.project.ProjectAccess;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.net.URI;
 import org.springframework.core.io.Resource;
@@ -20,11 +20,12 @@ import static com.vibestory.project.ProjectAccess.Resource.*;
 @io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "session")
 public class TaskController {
     private final TaskService tasks;
-    private final EpisodeWorkflow workflow;
     private final ProjectAccess access;
-    public TaskController(TaskService tasks, ProjectAccess access, EpisodeWorkflow workflow) { this.tasks = tasks; this.access = access; this.workflow = workflow; }
+    public TaskController(TaskService tasks, ProjectAccess access) { this.tasks = tasks; this.access = access; }
 
-    public record Submit(@Size(max = 128) String regenerateNonce) {}
+    public record Submit(@Size(max = 128) String regenerateNonce,
+                         @Size(max = 4000) String prompt,
+                         @Pattern(regexp = "[1-9][0-9]{0,18}") String expectedFirstFrameId) {}
     public record Retry(boolean acknowledgeUnknown) {}
 
     @PostMapping("/api/shots/{shotId}/video-tasks")
@@ -33,7 +34,12 @@ public class TaskController {
     ResponseEntity<TaskService.Submission> submit(@AuthenticationPrincipal Viewer viewer,
             @PathVariable long shotId, @Valid @RequestBody Submit body) {
         var grant = access.edit(viewer.id(), SHOT, shotId);
-        var task = workflow.generateShot(grant.partitionUserId(), shotId, GenerationBatch.Type.VIDEO, body.regenerateNonce(), false);
+        Long expectedFirstFrame = null;
+        if (body.expectedFirstFrameId() != null) {
+            try { expectedFirstFrame = Long.valueOf(body.expectedFirstFrameId()); }
+            catch (NumberFormatException error) { throw ApiException.badRequest("首帧 ID 无效"); }
+        }
+        var task = tasks.submit(grant.partitionUserId(), shotId, body.regenerateNonce(), expectedFirstFrame, body.prompt());
         access.recordTask(grant, task.taskId());
         return accepted(task);
     }

@@ -47,7 +47,7 @@ public class SecurityConfig {
             .securityContext(context -> context.securityContextRepository(contexts))
             .requestCache(cache -> cache.disable())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/csrf", "/api/auth/login", "/v3/api-docs/**",
+                .requestMatchers("/api/auth/csrf", "/api/auth/login", "/api/auth/register", "/v3/api-docs/**",
                     "/swagger-ui/**", "/swagger-ui.html", "/error").permitAll()
                 .anyRequest().authenticated())
             .exceptionHandling(errors -> errors

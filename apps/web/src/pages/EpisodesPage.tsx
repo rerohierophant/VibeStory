@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Badge } from '@/components/Badge';
 import { Button } from '@/components/Button';
+import { EpisodeNameInput } from '@/components/EpisodeNameInput';
 import { EmptyState } from '@/components/EmptyState';
-import { Modal } from '@/components/Modal';
 import { PlaceholderImage } from '@/components/PlaceholderImage';
+import { episodeBreakdownProgress } from '@/lib/episodeProgress';
 import { timeAgo } from '@/lib/id';
 import { useProject, useProjectShots, useStore } from '@/lib/store';
 
@@ -61,9 +62,9 @@ export function EpisodesPage() {
   const { id = '' } = useParams();
   const project = useProject(id);
   const shots = useProjectShots(id);
-  const { createEpisode, updateEpisode, workspaceReadOnly } = useStore();
+  const { createEpisode, updateEpisode, workspaceReadOnly, mode } = useStore();
   const navigate = useNavigate();
-  const [editing, setEditing] = useState<{ id: string; title: string } | null>(null);
+  const [editingId, setEditingId] = useState<string>();
 
   if (!project) {
     return (
@@ -78,6 +79,7 @@ export function EpisodesPage() {
   }
 
   const episodes = [...project.episodes].sort((a, b) => a.index - b.index);
+  const canAddEpisode = mode === 'demo' || !!project.teamId;
 
   const addEpisode = async () => {
     try {
@@ -95,20 +97,25 @@ export function EpisodesPage() {
             {episodes.length} 集 · {shots.length} 个镜头。每集各自拆解、各自出图。
           </p>
         </div>
-        <Button disabled={workspaceReadOnly} onClick={addEpisode}>新建一集</Button>
+        {canAddEpisode && <Button disabled={workspaceReadOnly} onClick={addEpisode}>新建一集</Button>}
       </header>
 
       <div className="flex-1 overflow-y-auto scroll-thin p-8">
         {episodes.length === 0 ? (
           <EmptyState
             title="还没有分集"
-            description="短剧通常按集推进。先建第一集，粘贴这一集的剧本。"
-            action={<Button disabled={workspaceReadOnly} onClick={addEpisode}>新建一集</Button>}
+            description={canAddEpisode
+              ? '先建第一集，粘贴这一集的剧本。'
+              : '导入整稿或输入故事想法，审阅并确认分集草案。'}
+            action={canAddEpisode
+              ? <Button disabled={workspaceReadOnly} onClick={addEpisode}>新建一集</Button>
+              : <Link to={`/projects/${id}`} className="text-sm text-accent-soft underline underline-offset-4">去准备故事</Link>}
           />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
             {episodes.map((ep) => {
               const epShots = shots.filter((s) => s.episodeId === ep.id);
+              const breakdown = episodeBreakdownProgress(ep.breakdown, epShots.length);
               const confirmed = epShots.filter((s) => s.status === 'confirmed').length;
               const withVideo = epShots.filter((s) => s.video.ready).length;
               const pct = epShots.length ? Math.round((confirmed / epShots.length) * 100) : 0;
@@ -132,7 +139,7 @@ export function EpisodesPage() {
                     <button
                       type="button"
                       disabled={workspaceReadOnly}
-                      onClick={() => setEditing({ id: ep.id, title: ep.title })}
+                      onClick={() => setEditingId(ep.id)}
                       title="修改集名"
                       aria-label={`修改第 ${ep.index} 集集名`}
                       className="absolute right-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-md bg-black/55 text-white/80 backdrop-blur transition hover:bg-black/75 hover:text-white"
@@ -148,8 +155,12 @@ export function EpisodesPage() {
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/[0.06] text-sm">
                         {ep.index}
                       </span>
-                      <div className="min-w-0">
-                        <h2 className="truncate text-sm font-medium">{ep.title}</h2>
+                      <div className="min-w-0 flex-1">
+                        {!workspaceReadOnly && editingId === ep.id ? <EpisodeNameInput
+                          title={ep.title}
+                          onSave={(title) => { updateEpisode(ep.id, { title }); setEditingId(undefined); }}
+                          onCancel={() => setEditingId(undefined)}
+                        /> : <h2 className="truncate text-sm font-medium">{ep.title}</h2>}
                         <p className="mt-0.5 text-[11px] text-muted">更新于 {timeAgo(ep.updatedAt)}</p>
                       </div>
                     </div>
@@ -159,8 +170,8 @@ export function EpisodesPage() {
                     </p>
 
                     <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                      <Badge tone={epShots.length > 0 ? 'success' : ep.breakdown === 'running' ? 'accent' : 'muted'}>
-                        {epShots.length > 0 ? '已拆解' : ep.breakdown === 'running' ? '拆解中' : '未拆解'}
+                      <Badge tone={breakdown === 'running' ? 'accent' : breakdown === 'done' ? 'success' : 'muted'}>
+                        {breakdown === 'running' ? '拆解中' : breakdown === 'done' ? '已拆解' : '未拆解'}
                       </Badge>
                       <Badge tone="neutral">{epShots.length} 镜</Badge>
                       <Badge tone="neutral">{confirmed} 已确认</Badge>
@@ -195,32 +206,6 @@ export function EpisodesPage() {
         )}
       </div>
 
-      <Modal open={!!editing} onClose={() => setEditing(null)} width="max-w-md" labelledBy="episode-rename-title">
-        <div className="p-6">
-          <h2 id="episode-rename-title" className="text-lg font-medium">
-            修改集名
-          </h2>
-          <input
-            className="field mt-4"
-            value={editing?.title ?? ''}
-            onChange={(e) => editing && setEditing({ ...editing, title: e.target.value })}
-            autoFocus
-          />
-          <div className="mt-6 flex justify-end gap-3">
-            <Button variant="ghost" onClick={() => setEditing(null)}>
-              取消
-            </Button>
-            <Button
-              onClick={() => {
-                if (editing && editing.title.trim()) updateEpisode(editing.id, { title: editing.title.trim() });
-                setEditing(null);
-              }}
-            >
-              保存
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }

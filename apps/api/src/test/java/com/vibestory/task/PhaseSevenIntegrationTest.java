@@ -39,7 +39,7 @@ class PhaseSevenIntegrationTest extends PostgresSupport {
     long project,episode,a,b,draft;
     final TaskStore.Providers mocks=new TaskStore.Providers("mock","mock","mock");
     @BeforeEach void setup() {
-        db.execute("truncate app_user,storage_cleanup restart identity cascade");
+        resetDatabase(db);
         alice=account("alice@phase7.test");bob=account("bob@phase7.test");
         project=db.fetchOne("insert into project(user_id,name,visual_type) values (?,'批次','realistic') returning id",alice.id()).get(0,Long.class);
         episode=db.fetchOne("insert into episode(user_id,project_id,episode_index,title) values (?,?,1,'一') returning id",alice.id(),project).get(0,Long.class);
@@ -58,9 +58,9 @@ class PhaseSevenIntegrationTest extends PostgresSupport {
         assertThat(conflict.progress().blocked()).isEqualTo(1);
         assertThat(conflict.members().getFirst().reason()).contains("不同输入");
     }
-    @Test void imageBatchCanAcceptAfterAnEarlierBlockedMember() {
+    @Test void imageBatchAcceptsDraftShots() {
         var view=submit("image",GenerationBatch.Type.IMAGE,List.of(draft,a,b),false);
-        assertThat(view.progress().accepted()).isEqualTo(2);assertThat(view.progress().blocked()).isEqualTo(1);
+        assertThat(view.progress().accepted()).isEqualTo(3);assertThat(view.progress().blocked()).isZero();
         assertThat(batches.list(alice.id(),episode,GenerationBatch.Type.IMAGE)).hasSize(1);
     }
     @Test void agentRetriesOnlyKnownFailedMembersOfTheScopedLatestBatch() throws Exception {
@@ -106,19 +106,13 @@ class PhaseSevenIntegrationTest extends PostgresSupport {
         b = shot(2, "DRAFT");
         db.execute("update task set status='SUCCEEDED', output_snapshot=jsonb_build_object('shotIds', jsonb_build_array(?,?)) where id=?",
             a, b, task);
-        mvc.perform(get(plan).with(user(alice))).andExpect(jsonPath("$.next.action").value("CONFIRM_SHOTS"));
-
-        mvc.perform(put("/api/shots/" + a + "/status").with(user(alice)).with(csrf()).contentType("application/json")
-                .content("{\"status\":\"confirmed\"}"))
-            .andExpect(status().isOk());
+        mvc.perform(get(plan).with(user(alice))).andExpect(jsonPath("$.next.action").value("GENERATE_IMAGES"));
         String submit = """
             {"type":"IMAGE","requestKey":"phase12-page","shotIds":["%d"]}
             """.formatted(a);
         mvc.perform(post(batchesPath).with(user(alice)).with(csrf()).contentType("application/json").content(submit))
             .andExpect(status().isAccepted());
         long pageBatch = db.fetchOne("select id from generation_batch where request_key='phase12-page'").get(0, Long.class);
-        mvc.perform(post("/api/episodes/" + episode + "/shots/confirm-all").with(user(alice)).with(csrf()))
-            .andExpect(status().isOk());
         mvc.perform(multipart(path + "/messages").param("requestKey", UUID.randomUUID().toString())
                 .param("episodeId", Long.toString(episode)).param("instruction", "继续做这集").with(user(alice)).with(csrf()))
             .andExpect(status().isOk()).andExpect(jsonPath("$.messages[0].workflow.state").value("GENERATING"))

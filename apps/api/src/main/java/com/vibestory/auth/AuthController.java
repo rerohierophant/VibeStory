@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.nio.charset.StandardCharsets;
 import com.vibestory.common.ApiException;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -25,10 +26,13 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
     private final AuthenticationManager authentication;
     private final SecurityContextRepository contexts;
+    private final AccountRegistration registration;
 
-    public AuthController(AuthenticationManager authentication, SecurityContextRepository contexts) {
+    public AuthController(AuthenticationManager authentication, SecurityContextRepository contexts,
+                          AccountRegistration registration) {
         this.authentication = authentication;
         this.contexts = contexts;
+        this.registration = registration;
     }
 
     public record Login(@NotBlank @Email @Size(max = 254) String email,
@@ -43,11 +47,27 @@ public class AuthController {
 
     @PostMapping("/api/auth/login")
     Me login(@Valid @RequestBody Login body, HttpServletRequest request, HttpServletResponse response) {
-        if (body.password().getBytes(StandardCharsets.UTF_8).length > 72)
+        validatePasswordBytes(body.password());
+        return startSession(body, request, response);
+    }
+
+    @PostMapping("/api/auth/register")
+    @ResponseStatus(HttpStatus.CREATED)
+    Me register(@Valid @RequestBody Login body, HttpServletRequest request, HttpServletResponse response) {
+        validatePasswordBytes(body.password());
+        registration.register(body.email(), body.password());
+        return startSession(body, request, response);
+    }
+
+    private static void validatePasswordBytes(String password) {
+        if (password.getBytes(StandardCharsets.UTF_8).length > 72)
             throw ApiException.badRequest("密码不可超过 72 UTF-8 字节");
+    }
+
+    private Me startSession(Login body, HttpServletRequest request, HttpServletResponse response) {
         var auth = authentication.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(body.email(), body.password()));
         new ChangeSessionIdAuthenticationStrategy().onAuthentication(auth, request, response);
-        // Rotate the pre-login CSRF token along with the session identity.
+        // Rotate the anonymous CSRF token along with the session identity.
         new HttpSessionCsrfTokenRepository().saveToken(null, request, response);
         var context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(auth);
@@ -61,7 +81,7 @@ public class AuthController {
     Me me(@AuthenticationPrincipal Viewer viewer) { return new Me(Long.toString(viewer.id()), viewer.email()); }
 
     @PostMapping("/api/auth/logout")
-    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     @io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "session")
     void logout(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
         var handler = new SecurityContextLogoutHandler();

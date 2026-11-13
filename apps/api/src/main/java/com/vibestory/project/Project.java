@@ -17,6 +17,7 @@ public class Project {
     private String name;
     private String visualType;
     private String style;
+    private String synopsis = "";
     private Instant createdAt;
     private Instant updatedAt;
     @Version private long version;
@@ -37,18 +38,21 @@ public class Project {
     public Long teamId() { return teamId; }
     public long version() { return version; }
     public String visualType() { return visualType; }
-    public void update(String name, String visualType, String style) {
+    public String style() { return style; }
+    public void update(String name, String visualType, String style, String synopsis) {
         if (name != null) this.name = name;
         if (visualType != null) this.visualType = visualType;
         if (style != null) this.style = style;
+        if (synopsis != null) this.synopsis = synopsis;
         updatedAt = Instant.now();
     }
     @io.swagger.v3.oas.annotations.media.Schema(name = "Project")
     public record View(String id, String name, String visualType, String style, long createdAt, long updatedAt,
                        List<Episode.View> episodes, VisualPreset visualPreset, ProductionStatistics.Overview stats,
-                       String teamId, long version) {}
-    public View view(List<Episode.View> episodes, VisualPreset preset, ProductionStatistics.Overview stats) {
+                       String teamId, long version, String coverImageUrl, String synopsis, boolean styleEditable) {}
+    public View view(List<Episode.View> episodes, VisualPreset preset, ProductionStatistics.Overview stats,
+                     String coverImageUrl, boolean styleEditable) {
         return new View(id.toString(), name, visualType, style, createdAt.toEpochMilli(), updatedAt.toEpochMilli(),
-            episodes, preset, stats, teamId == null ? null : teamId.toString(), version);
+            episodes, preset, stats, teamId == null ? null : teamId.toString(), version, coverImageUrl, synopsis, styleEditable);
     }
 }

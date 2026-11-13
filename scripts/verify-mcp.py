@@ -168,12 +168,12 @@ def verify(runtime, java_env, origin, email, other, password, episode_id, api):
         assert applied["state"] == "APPLIED"
         assert mcp.call("apply_shot_edit", proposal) == applied
         assert api.request("GET", "/api/shots/" + third["id"])["shotSize"] == "近景"
-        assert mcp.call("confirm_all_shots", target)["confirmed_count"] == 3
         request = {**target, "request_key": str(uuid.uuid4()), "shot_ids": [first["id"], third["id"]]}
         batch_id = mcp.call("submit_image_batch", request)["id"]
         assert mcp.call("submit_image_batch", request)["id"] == batch_id
         batch_ref = {"batch_id": batch_id}
         until(lambda: mcp.call("get_image_batch", batch_ref)["progress"]["succeeded"] == 2)
+        assert mcp.call("confirm_all_shots", target)["confirmed_count"] == 2
         assert mcp.call("get_generation_batch", batch_ref) == mcp.call("get_image_batch", batch_ref)
         video_id, frame = verify_video(mcp, api, target, first["id"], third["id"])
     with client(runtime, java_env, origin, email, password, "reopened") as mcp:

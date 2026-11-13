@@ -19,7 +19,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.springframework.stereotype.Service;
@@ -71,7 +70,7 @@ public class EpisodeWorkflow {
         if (source == null) throw ApiException.notFound();
         var targets = targets(user, episode);
         var story = new StoryContext(source.get("story_ready", Boolean.class), source.get("status", String.class));
-        var storyboard = new StoryboardContext(targets.size(), count(targets, t -> !t.confirmed()),
+        var storyboard = new StoryboardContext(targets.size(), count(targets, t -> t.firstFrameId() != null && !t.confirmed()),
             count(targets, t -> !t.hasImage()), count(targets, t -> active(t.imageState())),
             count(targets, t -> !t.hasImage() && issue(t.imageState())));
         var video = new VideoContext(count(targets, t -> !t.hasVideo()),
@@ -85,14 +84,14 @@ public class EpisodeWorkflow {
     List<Target> targets(long user, long episode) {
         return db.fetch("""
             select s.id, s.status,
-                   exists(select 1 from shot_image i where i.shot_id=s.id and i.visible_in_storyboard and i.status='READY') as has_image,
+                   exists(select 1 from shot_image i where i.shot_id=s.id and i.status='READY') as has_image,
                    (select i.id from shot_image i where i.shot_id=s.id and i.selected and i.status='READY') as first_frame_id,
                    exists(select 1 from video v where v.shot_id=s.id and v.episode_id=s.episode_id) as has_video,
                    image.status as image_state, video.status as video_state
             from shot s
             left join lateral (
                 select t.status from task t where t.user_id=s.user_id and t.episode_id=s.episode_id and t.target_type='SHOT'
-                    and t.target_id=s.id and t.type='IMAGE' and t.storyboard_variant_revision_id is null
+                    and t.target_id=s.id and t.type='IMAGE' and t.error_code is distinct from 'PROJECT_STYLE_CHANGED'
                 order by (t.status in ('QUEUED','RUNNING')) desc, t.id desc limit 1
             ) image on true
             left join lateral (
@@ -129,8 +128,19 @@ public class EpisodeWorkflow {
     }
 
     @Transactional
+    public ShotService.View shotStatus(long user, long shot, String status, Long imageId) {
+        if (imageId != null && status.equals("confirmed")) images.select(user, shot, imageId);
+        return shots.status(user, shot, status);
+    }
+
+    @Transactional
     public List<ShotService.View> confirmShots(long user, long episode) {
-        return shots.confirmAll(user, episode);
+        return confirmShots(user, episode, null);
+    }
+
+    @Transactional
+    public List<ShotService.View> confirmShots(long user, long episode, Map<String, String> reviewedFrames) {
+        return shots.confirmAll(user, episode, reviewedFrames);
     }
 
     @Transactional
@@ -192,8 +202,6 @@ public class EpisodeWorkflow {
         var targets = targets(user, episode);
         var ids = targets.stream().map(Target::id).toList();
         var members = batch.members().stream().map(member -> Long.parseLong(member.shotId())).toList();
-        var confirmed = targets.stream().filter(Target::confirmed).map(Target::id).collect(Collectors.toSet());
-        if (!confirmed.containsAll(members)) return;
         long batchId = Long.parseLong(batch.id());
         var runs = db.fetch("""
             select w.id, w.batch_ids
@@ -210,7 +218,7 @@ public class EpisodeWorkflow {
             Set<Long> covered = new HashSet<>(coveredShots(linked));
             if (members.stream().anyMatch(covered::contains)) continue;
             covered.addAll(members);
-            boolean complete = targets.stream().allMatch(t -> t.confirmed() && (t.hasImage() || covered.contains(t.id())));
+            boolean complete = targets.stream().allMatch(t -> t.hasImage() || covered.contains(t.id()));
             db.execute("""
                 update agent_workflow set batch_ids=array_append(batch_ids, ?),
                     confirmed_at=case when ? then clock_timestamp() else confirmed_at end

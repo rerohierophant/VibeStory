@@ -1,19 +1,22 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Outlet, useMatch, useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, Outlet, useMatch, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/Button';
-import { creativeEpisodeKey } from './CreativePanels';
+import { SidebarToggle } from '@/components/SidebarToggle';
 import { ExecutionRecord } from './AgentExecution';
-import { EpisodeWorkflowStatus } from '@/features/EpisodeWorkflowStatus';
+import { creativeRecipesKey } from './CreativeRecipes';
 import { api, ApiError, type Schema } from '@/lib/api';
+import { sidebarWidth } from '@/lib/sidebar';
 import { useStore } from '@/lib/store';
 
 const fieldLabels: Record<string, string> = { shotSize: '景别', dialogue: '台词', description: '画面描述' };
 const paths = {
-  panel: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M15 4v16M7 9l3 3-3 3" /></>,
+  sparkles: <>
+    <path d="M10 3.5 12.2 9.8 18.5 12 12.2 14.2 10 20.5 7.8 14.2 1.5 12 7.8 9.8 10 3.5Z" />
+    <path d="M19 2v6m-3-3h6m-2 10v5m-2.5-2.5h5" />
+  </>,
   history: <><path d="M3 4v5h5M3.7 8.8a8.5 8.5 0 1 1 0 6.4M12 7v5l3 2" /></>,
   plus: <path d="M12 5v14M5 12h14" />,
-  back: <path d="M14 6l-6 6 6 6" />,
   robot: <><rect x="5" y="8" width="14" height="11" rx="2" /><path d="M12 8V4H9M2 13h3m14 0h3M9 13v2m6-2v2" /></>,
   clip: <path d="M8.5 13.5l6.4-6.4a2 2 0 0 1 2.8 2.8l-8.5 8.5a4 4 0 0 1-5.7-5.7l8.5-8.5a5 5 0 0 1 7.1 7.1l-7.8 7.8" />,
   send: <path d="M12 19V5m-6 6 6-6 6 6" />,
@@ -25,58 +28,73 @@ function Icon({ name }: { name: keyof typeof paths }) {
     stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
 }
 
-function IconButton({ icon, label, onClick, disabled }: {
-  icon: keyof typeof paths; label: string; onClick: () => void; disabled?: boolean;
+function IconButton({ icon, label, onClick, disabled, expanded, controls }: {
+  icon: keyof typeof paths; label: string; onClick: () => void; disabled?: boolean; expanded?: boolean; controls?: string;
 }) {
   return <button type="button" aria-label={label} title={label} onClick={onClick} disabled={disabled}
-    className="grid size-9 shrink-0 place-items-center rounded-card text-muted transition hover:bg-hover/45 hover:text-fg disabled:opacity-40">
+    aria-expanded={expanded} aria-controls={controls}
+    className="grid size-9 shrink-0 place-items-center rounded-card text-muted transition hover:bg-hover/45 hover:text-fg aria-expanded:bg-hover/45 aria-expanded:text-fg disabled:opacity-40">
     <Icon name={icon} />
   </button>;
 }
 
 export function AgentWorkbench() {
-  const [open, setOpen] = useState(false);
+  const [openPreference, setOpenPreference] = useState<boolean>();
+  const [assetsAgentOpen, setAssetsAgentOpen] = useState(false);
   const { mode, projects, user, workspaceLoading } = useStore();
+  const assetsRoute = useMatch('/assets');
   const projectRoute = useMatch('/projects/:id/*');
   const episodeRoute = useMatch('/projects/:id/episodes/:episodeId/:tab?');
   const project = projects.find(item => item.id === projectRoute?.params.id);
   const episode = project?.episodes.find(item => item.id === episodeRoute?.params.episodeId);
   const scope = project ? project.name + (episode ? ` · 第 ${episode.index} 集` : '') : undefined;
   const showAgent = !project?.teamId && !workspaceLoading;
+  const open = assetsRoute ? assetsAgentOpen : (openPreference ?? !!project);
+  const setOpen = assetsRoute ? setAssetsAgentOpen : setOpenPreference;
 
   return (
     <div className="relative flex h-full min-h-0 overflow-hidden">
       <div className="h-full min-w-0 flex-1"><Outlet /></div>
-      {showAgent && !open && (
-        <div className="shrink-0 border-l border-stroke/20 bg-panel/50 p-2">
-          <Button type="button" variant="ghost" size="sm" aria-expanded={false} aria-controls="agent-panel" onClick={() => setOpen(true)}>
-            Agent
-          </Button>
+      <div className={`${showAgent ? 'flex' : 'hidden'} relative shrink-0 ${sidebarWidth.collapsed} xl:w-auto`}>
+        <div className={`absolute inset-y-0 right-0 z-30 max-w-[calc(100dvw-1rem)] xl:relative xl:z-auto ${open ? 'w-[26rem]' : sidebarWidth.collapsed} transition-[width] duration-200 ease-out motion-reduce:transition-none`}>
+          <div className={`relative h-full overflow-hidden border-l border-stroke/20 ${open ? 'bg-panel shadow-xl xl:shadow-none' : 'bg-panel/50'}`}>
+            <aside id="agent-panel" aria-label="Agent 对话" aria-hidden={!open} inert={!open || !showAgent}
+              className={`absolute inset-y-0 right-0 flex w-[26rem] max-w-[calc(100dvw-1rem)] flex-col transition-opacity duration-200 ease-out motion-reduce:transition-none ${open ? 'opacity-100' : 'opacity-0'}`}>
+              {mode === 'demo' ? <>
+                <header className="flex h-14 shrink-0 items-center border-b border-stroke/20 px-4">
+                  <h2 className="font-medium text-fg">新会话</h2>
+                </header>
+                <div className="grid flex-1 place-items-center p-4 text-sm text-muted">连接后端后即可使用 Agent。</div>
+              </> : user?.id && <AgentConversation key={conversationSelectionKey(user.id, project?.id, episode?.id)} userId={user.id}
+                projectId={project?.id} episodeId={episode?.id} scope={scope} open={showAgent && open} />}
+            </aside>
+            {!open && <div className="relative flex justify-center pt-5">
+              <button type="button" aria-label="打开 Agent 对话" title="打开 Agent 对话" aria-expanded={false} aria-controls="agent-panel"
+                onClick={() => setOpen(true)}
+                className="grid size-9 place-items-center rounded-card bg-accent/15 text-accent-soft transition hover:bg-accent/25">
+                <Icon name="sparkles" />
+              </button>
+            </div>}
+          </div>
+          <SidebarToggle side="right" collapsed={!open} controls="agent-panel" onToggle={() => setOpen(!open)} />
         </div>
-      )}
-      <aside id="agent-panel" aria-label="Agent 对话"
-        className={`${showAgent && open ? 'flex' : 'hidden'} absolute inset-y-0 right-0 z-30 w-[26rem] max-w-full shrink-0 flex-col border-l border-stroke/20 bg-panel shadow-xl xl:static xl:shadow-none`}>
-        {mode === 'demo' ? <>
-          <header className="flex h-14 shrink-0 items-center gap-2 border-b border-stroke/20 px-3">
-            <IconButton icon="panel" label="收起 Agent" onClick={() => setOpen(false)} />
-            <h2 className="font-medium text-fg">新会话</h2>
-          </header>
-          <div className="grid flex-1 place-items-center p-4 text-sm text-muted">连接后端后即可使用 Agent。</div>
-        </> : user?.id && <AgentConversation key={`${user.id}/${episode?.id ?? 'workspace'}`} userId={user.id} projectId={showAgent ? projectRoute?.params.id : undefined}
-          episodeId={showAgent ? episodeRoute?.params.episodeId : undefined}
-          scope={showAgent ? scope : undefined} open={showAgent && open} onClose={() => setOpen(false)} />}
-      </aside>
+      </div>
     </div>
   );
 }
 
-function AgentConversation({ userId, projectId, episodeId, scope, open, onClose }: {
-  userId: string; projectId?: string; episodeId?: string; scope?: string; open: boolean; onClose: () => void;
+function conversationSelectionKey(userId: string, projectId?: string, episodeId?: string) {
+  const prefix = `vibestory.agent.conversation.${userId}`;
+  return episodeId ? `${prefix}.${episodeId}` : projectId ? `${prefix}.project.${projectId}` : prefix;
+}
+
+function AgentConversation({ userId, projectId, episodeId, scope, open }: {
+  userId: string; projectId?: string; episodeId?: string; scope?: string; open: boolean;
 }) {
-  const { sendAgentMessage, decideShotEdit, confirmAgentWorkflow } = useStore();
+  const { projects, sendAgentMessage, decideShotEdit, confirmAgentWorkflow } = useStore();
   const cache = useQueryClient();
   const navigate = useNavigate();
-  const selectionKey = `vibestory.agent.conversation.${userId}${episodeId ? `.${episodeId}` : ''}`;
+  const selectionKey = conversationSelectionKey(userId, projectId, episodeId);
   const [selection, setSelection] = useState(() => {
     const remembered = sessionStorage.getItem(selectionKey);
     return { id: remembered ?? crypto.randomUUID(), saved: !!remembered };
@@ -88,18 +106,13 @@ function AgentConversation({ userId, projectId, episodeId, scope, open, onClose 
     queryFn: () => api<Schema['CreativeEpisode']>(`/api/episodes/${episodeId}/creative/session`, 'POST'),
     retry: false,
   });
-  const creative = useQuery({
-    queryKey: creativeEpisodeKey(userId, episodeId),
-    enabled: open && !!episodeId,
-    queryFn: ({ signal }) => api<Schema['CreativeEpisode']>(`/api/episodes/${episodeId}/creative`, 'GET', undefined, signal),
-    refetchInterval: open ? 2500 : false,
-  });
   const [historyOpen, setHistoryOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [skillsDismissed, setSkillsDismissed] = useState(false);
   const [skillIndex, setSkillIndex] = useState(0);
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
+  const [streamingReply, setStreamingReply] = useState<{ executionId: string; text: string }>();
   const [error, setError] = useState('');
   const [staleProposal, setStaleProposal] = useState<string>();
   const composer = useRef<HTMLTextAreaElement>(null);
@@ -112,18 +125,19 @@ function AgentConversation({ userId, projectId, episodeId, scope, open, onClose 
   const path = `/api/agent/conversations/${selection.id}`;
   const history = useQuery({
     queryKey: historyKey, enabled: open && historyOpen,
-    queryFn: ({ signal }) => api<Schema['Conversation'][]>('/api/agent/conversations', 'GET', undefined, signal),
+    queryFn: ({ signal }) => api<Schema['ConversationHistoryItem'][]>('/api/agent/conversations', 'GET', undefined, signal),
   });
+  const conversations = history.data?.filter(item => !!item.id && (!projectId || item.projectId === projectId)) ?? [];
   const transcript = useQuery({
-    queryKey: transcriptKey, enabled: open && selection.saved && !historyOpen,
+    queryKey: transcriptKey, enabled: open && selection.saved,
     queryFn: ({ signal }) => api<Schema['Transcript']>(path, 'GET', undefined, signal),
-    refetchInterval: query => open && !historyOpen && query.state.data?.messages?.some(message =>
+    refetchInterval: query => open && query.state.data?.messages?.some(message =>
       ['WAITING_BREAKDOWN', 'WAITING_CONFIRMATION', 'GENERATING', 'PAUSED'].includes(message.workflow?.state ?? '')
       || ['QUEUED', 'RUNNING', 'WAITING'].includes(message.execution?.state ?? '')) ? 1500 : false,
   });
   const messages = transcript.data?.messages ?? [];
   const skillSearch = draft.trimStart().match(/^[/／]([^\n\r]*)$/u)?.[1];
-  const skillsOpen = skillSearch !== undefined && !skillsDismissed && open && !historyOpen && !busy;
+  const skillsOpen = skillSearch !== undefined && !skillsDismissed && open && !busy;
   const skills = useQuery({
     queryKey: ['agent-skills', userId], enabled: skillsOpen, staleTime: 5 * 60 * 1000,
     queryFn: ({ signal }) => api<Schema['Entry'][]>('/api/agent/skills', 'GET', undefined, signal),
@@ -142,8 +156,8 @@ function AgentConversation({ userId, projectId, episodeId, scope, open, onClose 
   }, [activeSkill]);
 
   useEffect(() => {
-    if (open && !historyOpen && scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight;
-  }, [messages.length, open, historyOpen, selection.id, busy]);
+    if (open && scroll.current) scroll.current.scrollTop = 0;
+  }, [messages.length, open, selection.id, busy]);
 
   useEffect(() => {
     if (!useMain || !main.data?.mainSessionId) return;
@@ -151,7 +165,8 @@ function AgentConversation({ userId, projectId, episodeId, scope, open, onClose 
     sessionStorage.setItem(selectionKey, id);
     setSelection({ id, saved: true });
     setUseMain(false);
-  }, [main.data?.mainSessionId, selectionKey, useMain]);
+    void cache.invalidateQueries({ queryKey: ['agent-conversations', userId] });
+  }, [cache, main.data?.mainSessionId, selectionKey, useMain, userId]);
 
   function select(id?: string) {
     if (busy) return;
@@ -165,6 +180,19 @@ function AgentConversation({ userId, projectId, episodeId, scope, open, onClose 
     setError('');
     setStaleProposal(undefined);
     retry.current = undefined;
+  }
+
+  function selectHistory(item: Schema['ConversationHistoryItem']) {
+    if (busy || !item.id) return;
+    setHistoryOpen(false);
+    if (item.id === selection.id) return;
+    if (item.projectId && (item.projectId !== projectId || item.episodeId !== episodeId)) {
+      sessionStorage.setItem(conversationSelectionKey(userId, item.projectId, item.episodeId), item.id);
+      const path = `/projects/${item.projectId}`;
+      navigate(item.episodeId ? `${path}/episodes/${item.episodeId}/story` : path);
+    } else {
+      select(item.id);
+    }
   }
 
   function attach(added: File[]) {
@@ -207,10 +235,26 @@ function AgentConversation({ userId, projectId, episodeId, scope, open, onClose 
     setBusy(true);
     setError('');
     try {
-      const result = await sendAgentMessage(selection.id, requestKey, body);
+      const result = await sendAgentMessage(selection.id, requestKey, body, event => {
+        if (event.type === 'start' && event.executionId && event.transcript) {
+          void cache.cancelQueries({ queryKey: transcriptKey });
+          cache.setQueryData(transcriptKey, event.transcript);
+          sessionStorage.setItem(selectionKey, selection.id);
+          setSelection({ id: selection.id, saved: true });
+          setStreamingReply({ executionId: event.executionId, text: '' });
+          setDraft('');
+          void cache.invalidateQueries({ queryKey: historyKey });
+        } else if (event.type === 'delta' || event.type === 'reset') {
+          setStreamingReply(reply => reply && ({
+            ...reply, text: event.type === 'reset' ? '' : reply.text + (event.text ?? ''),
+          }));
+        }
+      });
       await cache.cancelQueries({ queryKey: transcriptKey });
       cache.setQueryData(transcriptKey, result);
       void cache.invalidateQueries({ queryKey: historyKey });
+      void cache.invalidateQueries({ queryKey: creativeRecipesKey(userId) });
+      void cache.invalidateQueries({ queryKey: ['image-experience', userId] });
       sessionStorage.setItem(selectionKey, selection.id);
       setSelection({ id: selection.id, saved: true });
       retry.current = undefined;
@@ -218,7 +262,9 @@ function AgentConversation({ userId, projectId, episodeId, scope, open, onClose 
       setFiles([]);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '消息发送失败');
+      void cache.invalidateQueries({ queryKey: transcriptKey });
     } finally {
+      setStreamingReply(undefined);
       setBusy(false);
     }
   }
@@ -266,48 +312,45 @@ function AgentConversation({ userId, projectId, episodeId, scope, open, onClose 
 
   return (
     <>
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-stroke/20 px-3">
-        <IconButton icon="panel" label="收起 Agent" onClick={onClose} />
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-stroke/20 pl-4 pr-3">
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-sm font-semibold text-fg">{historyOpen ? '历史会话' : transcript.data?.conversation?.title ?? '新会话'}</h2>
-          {!historyOpen && scope && <p className="truncate text-[11px] text-muted/75" title={scope}>{scope}</p>}
+          <h2 className="truncate text-sm font-semibold text-fg">{transcript.data?.conversation?.title ?? '新会话'}</h2>
+          {scope && <p className="truncate text-[11px] text-muted/75" title={scope}>{scope}</p>}
         </div>
-        <IconButton icon={historyOpen ? 'back' : 'history'} label={historyOpen ? '返回对话' : '历史会话'}
-          onClick={() => setHistoryOpen(!historyOpen)} disabled={busy} />
+        <IconButton icon="history" label="历史会话" expanded={historyOpen} controls="agent-history"
+          onClick={() => setHistoryOpen(value => !value)} />
         <IconButton icon="plus" label="新建会话" onClick={() => select()} disabled={busy} />
       </header>
-      {episodeId && open && !historyOpen && <div className="space-y-1 border-b border-stroke/20 px-4 py-2">
-        <EpisodeWorkflowStatus episodeId={episodeId} />
-        <button type="button" className="text-xs text-muted underline" disabled={busy}
-          onClick={() => { select(); setUseMain(true); }}>本集主会话</button>
-        {main.isError && useMain && <p className="text-xs text-error-soft" role="alert">{main.error.message}</p>}
-        {creative.data?.script?.summary && <p className="text-xs text-muted">剧本 · {creative.data.script.summary}</p>}
-        {creative.data?.storyboard?.summary && <p className="text-xs text-muted">分镜 · {creative.data.storyboard.summary}</p>}
-      </div>}
-      {historyOpen ? (
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 scroll-thin">
-          {history.isLoading && <p className="px-2 text-sm text-muted">正在读取历史会话…</p>}
-          {history.isError && <p role="alert" className="px-2 text-sm text-error-soft">{history.error.message}</p>}
-          {history.isSuccess && !history.data.length && <p className="px-2 text-sm text-muted">还没有历史会话</p>}
-          <ul className="space-y-1">
-            {history.data?.map(item => item.id && (
-              <li key={item.id}>
-                <button type="button" onClick={() => select(item.id)} aria-current={item.id === selection.id ? 'true' : undefined}
-                  className="flex w-full items-center justify-between gap-2 rounded-card px-3 py-2.5 text-left hover:bg-hover/40 aria-[current=true]:bg-hover/40">
-                  <span className="truncate text-sm text-fg">{item.title}</span>
-                  {item.updatedAt && <time dateTime={item.updatedAt} className="shrink-0 text-xs text-muted">
-                    {new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric' }).format(new Date(item.updatedAt))}
-                  </time>}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : (
+      <section id="agent-history" aria-label="历史会话" hidden={!historyOpen}
+        className="max-h-[min(11rem,22dvh)] shrink-0 overflow-y-auto border-b border-stroke/20 bg-panel-2/30 px-3 py-2 scroll-thin">
+        {history.isLoading && <p className="px-2 py-1 text-sm text-muted">正在读取历史会话…</p>}
+        {history.isError && <p role="alert" className="px-2 py-1 text-sm text-error-soft">{history.error.message}</p>}
+        {history.isSuccess && !conversations.length && <p className="px-2 py-1 text-sm text-muted">还没有历史会话</p>}
+        <ul className="space-y-1">
+          {conversations.map(item => {
+            const projectName = !projectId && projects.find(project => project.id === item.projectId)?.name;
+            const context = item.episodeIndex != null ? `第 ${item.episodeIndex} 集` : item.projectId ? '项目会话' : undefined;
+            const label = [projectName, context, item.title].filter(Boolean).join(' · ');
+            return <li key={item.id}>
+              <button type="button" onClick={() => selectHistory(item)} disabled={busy}
+                aria-current={item.id === selection.id ? 'true' : undefined}
+                className="flex w-full items-center justify-between gap-2 rounded-card px-3 py-2 text-left hover:bg-hover/40 aria-[current=true]:bg-hover/40 disabled:opacity-50">
+                <span className="truncate text-sm text-fg" title={label}>{label}</span>
+                {item.updatedAt && <time dateTime={item.updatedAt} className="shrink-0 text-xs text-muted">
+                  {new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric' }).format(new Date(item.updatedAt))}
+                </time>}
+              </button>
+            </li>;
+          })}
+        </ul>
+      </section>
+      {open && main.isError && useMain && <p className="border-b border-stroke/20 px-4 py-2 text-xs text-error-soft"
+        role="alert">{main.error.message}</p>}
         <>
-          <div ref={scroll} className="min-h-0 flex-1 overflow-y-auto scroll-thin">
-            {transcript.isLoading ? <p className="p-4 text-sm text-muted">正在读取会话…</p> : transcript.isError
-              ? <p role="alert" className="p-4 text-sm text-error-soft">{transcript.error.message}</p>
+          {/* Anchor the viewport at the latest reply even when the history list changes height. */}
+          <div ref={scroll} className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto scroll-thin [overflow-anchor:none]">
+            {transcript.isLoading ? <p className="min-h-full p-4 text-sm text-muted">正在读取会话…</p> : transcript.isError
+              ? <p role="alert" className="min-h-full p-4 text-sm text-error-soft">{transcript.error.message}</p>
               : messages.length === 0 ? (
                 <div className="flex min-h-full flex-col items-center justify-center gap-3 p-6 text-center">
                   <div className="grid size-11 place-items-center rounded-2xl bg-panel-2/60 text-fg"><Icon name="robot" /></div>
@@ -315,7 +358,7 @@ function AgentConversation({ userId, projectId, episodeId, scope, open, onClose 
                   <p className="text-sm text-muted/80">输入工作台指令，或添加图片</p>
                 </div>
               ) : (
-                <div className="space-y-6 px-4 py-5">
+                <div className="min-h-full shrink-0 space-y-6 px-4 py-5">
                   {messages.map(message => (
                     <div key={message.id} className="space-y-3">
                       <div className="ml-auto w-fit max-w-[90%] space-y-2 rounded-panel rounded-br-md bg-panel-2/75 px-3 py-2.5">
@@ -331,11 +374,15 @@ function AgentConversation({ userId, projectId, episodeId, scope, open, onClose 
                       <div className="flex items-start gap-2.5">
                         <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-panel-2/60 text-muted"><Icon name="robot" /></span>
                         <div className="min-w-0 flex-1 pt-1">
-                          <MessageReply message={message} busy={busy} staleProposal={staleProposal}
+                          {streamingReply && streamingReply.executionId === message.execution?.id && streamingReply.text ? (
+                            <p data-testid="agent-streaming-reply" className="whitespace-pre-wrap break-words text-sm leading-6 text-fg">
+                              {streamingReply.text}
+                            </p>
+                          ) : <MessageReply message={message} userId={userId} open={open} busy={busy} staleProposal={staleProposal}
                             matchingScope={(message.projectId ?? undefined) === projectId && (message.episodeId ?? undefined) === episodeId}
                             onSuggestion={selectSkill} onConfirmWorkflow={id => void confirmWorkflow(id)}
                             onDecide={decision => void decide(message, decision)} onOpen={(project, episode, tab = 'story') =>
-                              navigate(`/projects/${project}/episodes/${episode}/${tab}`)} />
+                              navigate(`/projects/${project}/episodes/${episode}/${tab}`)} />}
                           <ExecutionRecord execution={message.execution} />
                         </div>
                       </div>
@@ -414,7 +461,6 @@ function AgentConversation({ userId, projectId, episodeId, scope, open, onClose 
             </div>
           </form>
         </>
-      )}
     </>
   );
 }
@@ -435,32 +481,15 @@ function PendingImage({ file, disabled, onRemove }: { file: File; disabled: bool
   </div>;
 }
 
-function VariantChoice({ result, adopted, disabled }: { result: Schema['AgentResult']; adopted?: boolean; disabled: boolean }) {
-  const choice = result.variantChoice!;
-  const { user, saving } = useStore();
-  const cache = useQueryClient();
-  const adopt = useMutation({
-    mutationFn: () => api(`/api/episodes/${choice.episodeId}/storyboard-variants/revisions/${choice.revisionId}/adopt`,
-      'POST', { requestKey: choice.requestKey, shots: [{ shotId: choice.shotId, imageId: choice.imageId,
-        shotVersion: choice.shotVersion, selectedImageId: choice.selectedImageId ?? null }] }),
-    onSuccess: () => Promise.all([
-      cache.invalidateQueries({ queryKey: ['workspace', user?.id] }),
-      cache.invalidateQueries({ queryKey: ['agent-transcript', user?.id] }),
-      cache.invalidateQueries({ queryKey: ['storyboard-variants', user?.id, choice.episodeId] }),
-    ]),
-  });
-  return <section aria-label="方案采纳预览" className="space-y-2 rounded-panel border border-stroke/25 p-3 text-sm">
-    <h3 className="font-medium">{result.message}</h3>
-    {choice.imageUrl && <img src={choice.imageUrl} alt="待采纳分镜图" className="rounded-card" />}
-    {result.details?.map(detail => <p className="break-words text-xs text-muted" key={detail}>{detail}</p>)}
-    {(adopted || adopt.isSuccess) ? <p role="status" className="text-xs text-success-soft">已采纳分镜图和镜头参数</p> :
-      <Button size="sm" disabled={disabled || saving || adopt.isPending} onClick={() => adopt.mutate()}>确认采纳这一镜</Button>}
-    {adopt.error && <p role="alert" className="text-xs text-error-soft">{adopt.error.message}</p>}
-  </section>;
+function displayResultText(text?: string) {
+  // Render older replies without directing users to removed controls.
+  return text?.replaceAll('请检查已选首帧，然后提交视频生成', '本集还有镜头未生成视频')
+    .replaceAll('，可在 Agent 对话的「创作草案」审阅并应用。', '。')
+    .replaceAll('可在 Agent 对话的「创作草案」审阅，或说', '可以说');
 }
 
-function MessageReply({ message, busy, staleProposal, matchingScope, onSuggestion, onConfirmWorkflow, onDecide, onOpen }: {
-  message: Schema['ChatMessage']; busy: boolean; staleProposal?: string;
+function MessageReply({ message, userId, open, busy, staleProposal, matchingScope, onSuggestion, onConfirmWorkflow, onDecide, onOpen }: {
+  message: Schema['ChatMessage']; userId: string; open: boolean; busy: boolean; staleProposal?: string;
   matchingScope: boolean; onSuggestion: (instruction: string) => void; onConfirmWorkflow: (id: string) => void;
   onDecide: (decision: 'apply' | 'discard') => void; onOpen: (project: string, episode: string, tab?: 'story' | 'storyboard') => void;
 }) {
@@ -478,8 +507,12 @@ function MessageReply({ message, busy, staleProposal, matchingScope, onSuggestio
     </section>;
   }
   const result = message.result;
-  if (!result) return null;
-  if (result.variantChoice) return <VariantChoice result={result} adopted={message.variantAdopted} disabled={busy || !matchingScope} />;
+  if (!result) return ['QUEUED', 'RUNNING', 'WAITING'].includes(message.execution?.state ?? '')
+    ? <p className="text-sm text-muted" role="status">{message.execution?.message}</p> : null;
+  if (result.projectId && result.projectPlanId) {
+    return <ProjectPlanReply userId={userId} projectId={result.projectId} planId={result.projectPlanId}
+      message={result.message} open={open} />;
+  }
   const proposal = result.proposal;
   if (proposal) {
     const state = message.proposalState;
@@ -510,14 +543,52 @@ function MessageReply({ message, busy, staleProposal, matchingScope, onSuggestio
     </section>;
   }
   return <section aria-label="指令结果" className="space-y-2 text-sm leading-6 text-fg">
-    <p role="status">{result.message}</p>
+    <p role="status" className="whitespace-pre-wrap break-words">{displayResultText(result.message)}</p>
     {result.taskId && <p className="text-xs text-muted">任务 {result.taskId}</p>}
     {result.batchId && <p className="text-xs text-muted">批次 {result.batchId}</p>}
     {!!result.details?.length && <ul className="space-y-1 text-xs text-muted">
-      {result.details.map((detail, index) => <li key={index}>{detail}</li>)}
+      {result.details.map((detail, index) => <li key={index}>{displayResultText(detail)}</li>)}
     </ul>}
     {result.projectId && result.episodeId && (
       <Button type="button" variant="outline" size="sm" onClick={() => onOpen(result.projectId!, result.episodeId!)}>打开分集</Button>
+    )}
+  </section>;
+}
+
+function ProjectPlanReply({ userId, projectId, planId, message, open }: {
+  userId: string; projectId: string; planId: string; message?: string; open: boolean;
+}) {
+  const plan = useQuery({
+    queryKey: ['creative-project', userId, projectId],
+    enabled: open,
+    queryFn: ({ signal }) => api<Schema['CreativeProject']>(`/api/projects/${projectId}/creative`, 'GET', undefined, signal),
+    refetchInterval: query => {
+      const plan = query.state.data?.plan;
+      return open && plan?.id === planId && (plan.state === 'QUEUED' || plan.state === 'RUNNING') ? 1500 : false;
+    },
+  });
+  const current = plan.data?.plan;
+  const isCurrent = current?.id === planId && current.current;
+  const ready = isCurrent && current.state === 'READY';
+  const status = plan.isError ? '暂时无法读取规划进度。'
+    : !plan.data ? '正在读取规划进度…'
+    : !isCurrent ? '项目的创作计划已更新。'
+    : current.state === 'READY' ? '分集草案已就绪，待审阅。'
+    : current.state === 'APPLIED' ? '分集草案已确认。'
+    : current.state === 'FAILED' ? '分集规划失败。'
+    : current.state === 'UNKNOWN' ? '分集规划结果未知。'
+    : current.state === 'RUNNING' ? '正在规划分集剧本、角色和场景…'
+    : '已提交分集规划，正在排队。';
+  return <section aria-label="短剧创作进度" className="space-y-2 rounded-panel border border-stroke/25 p-3 text-sm leading-6">
+    <p className="wrap-anywhere">{message}</p>
+    <p role="status">{status}</p>
+    {isCurrent && current.error && <p className="text-xs text-error-soft">{current.error}</p>}
+    {ready && current.summary && <p className="text-xs text-muted">{current.summary}</p>}
+    {!(plan.error instanceof ApiError && plan.error.status === 404) && (
+      <Link to={`/projects/${projectId}`}
+        className="inline-flex h-8 items-center rounded-card border border-stroke/40 px-3 text-xs font-medium text-fg transition hover:bg-hover/50">
+        {ready ? '前往项目概览审阅' : '打开项目概览'}
+      </Link>
     )}
   </section>;
 }
@@ -532,9 +603,6 @@ function WorkflowReply({ workflow, busy, onConfirm, onOpen }: {
   return <section aria-label="拆镜与出图流程" className="space-y-2 rounded-panel border border-stroke/25 p-3 text-sm leading-6">
     <h3 className="font-medium">拆镜与出图</h3>
     <p role="status">{workflow.message}</p>
-    {state === 'WAITING_CONFIRMATION' && <p className="text-xs text-muted">
-      {workflow.shotCount} 镜，{workflow.unconfirmed} 镜待确认。确认后只为这批镜头中仍缺图的镜头出图。
-    </p>}
     {workflow.batches?.map(batch => <p key={batch.id} className="text-xs text-muted">
       批次 {batch.id} · {batch.progress?.succeeded ?? 0}/{batch.progress?.total ?? 0} 已出图
     </p>)}
@@ -547,7 +615,7 @@ function WorkflowReply({ workflow, busy, onConfirm, onOpen }: {
       {projectId && episodeId && <Button type="button" variant="outline" size="sm" onClick={() => onOpen(projectId, episodeId,
         state === 'WAITING_BREAKDOWN' || state === 'BLOCKED' ? 'story' : 'storyboard')}>查看分集</Button>}
       {id && state === 'WAITING_CONFIRMATION' && <Button type="button" size="sm" disabled={busy} onClick={() => onConfirm(id)}>
-        确认镜头并出图
+        生成缺失分镜图
       </Button>}
     </div>
   </section>;

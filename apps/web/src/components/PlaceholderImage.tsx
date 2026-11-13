@@ -16,9 +16,11 @@ function hash(seed: string): number {
 interface Props {
   seed: string;
   label?: string;
+  alt?: string;
   className?: string;
   ratio?: string | null;
   rounded?: string;
+  fit?: 'cover' | 'contain';
 }
 
 /**
@@ -26,10 +28,10 @@ interface Props {
  * 接入 Provider 后，把这里换成 <img src={url} /> 即可。
  * ratio 传 null 表示不给宽高比，由父级（例如网格单元）决定尺寸。
  */
-export function PlaceholderImage({ seed, label, className = '', ratio = '16 / 9', rounded = 'rounded-card' }: Props) {
+export function PlaceholderImage({ seed, label, alt, className = '', ratio = '16 / 9', rounded = 'rounded-card', fit = 'cover' }: Props) {
   if (seed.startsWith('/api/') || seed.startsWith('data:image/')) {
     return <div className={`relative overflow-hidden bg-black/25 ${rounded} ${className}`} style={{ aspectRatio: ratio ?? undefined }}>
-      <img src={seed} alt={label ?? '生成图片'} className="h-full w-full object-cover" loading="lazy" />
+      <img src={seed} alt={alt ?? label ?? '生成图片'} className={`h-full w-full ${fit === 'contain' ? 'object-contain' : 'object-cover'}`} loading="lazy" />
       {label && <span className="absolute bottom-2 left-2.5 rounded bg-black/45 px-1.5 py-0.5 text-[10px] text-white/85">{label}</span>}
     </div>;
   }

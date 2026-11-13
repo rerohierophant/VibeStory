@@ -5,12 +5,15 @@ import { Button } from '@/components/Button';
 import { Logo } from '@/components/Logo';
 
 export function LoginPage() {
-  const { login, user, mode } = useStore();
+  const { login, register, user, mode } = useStore();
   const navigate = useNavigate();
   const [email, setEmail] = useState(mode === 'demo' ? 'creator@vibestory.dev' : '');
   const [password, setPassword] = useState(mode === 'demo' ? 'demo1234' : '');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [creatingAccount, setCreatingAccount] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const registering = creatingAccount && !!register;
 
   useEffect(() => {
     if (user) navigate('/', { replace: true });
@@ -18,20 +21,31 @@ export function LoginPage() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!email.includes('@')) {
+    if (loading) return;
+    const address = email.trim();
+    if (!address.includes('@')) {
       setError('请输入有效邮箱');
       return;
     }
-    if (password.length < 6) {
+    if (password.length < 6 || !password.trim()) {
       setError('密码至少 6 位');
+      return;
+    }
+    if (new TextEncoder().encode(password).length > 72) {
+      setError('密码不可超过 72 UTF-8 字节');
+      return;
+    }
+    if (registering && password !== confirmPassword) {
+      setError('两次输入的密码不一致');
       return;
     }
     setError('');
     setLoading(true);
     try {
-      await login(email.trim(), password);
+      if (registering) await register(address, password);
+      else await login(address, password);
       navigate('/', { replace: true });
-    } catch (cause) { setError(cause instanceof Error ? cause.message : '登录失败'); }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : registering ? '注册失败' : '登录失败'); }
     finally { setLoading(false); }
   };
 
@@ -79,8 +93,10 @@ export function LoginPage() {
             <Logo size={36} className="mb-4" wordmarkClassName="text-lg tracking-[0.18em]" />
           </div>
 
-          <h2 className="text-2xl font-semibold">登录工作台</h2>
-          <p className="mt-2 text-sm text-muted">使用创作者账号登录，所有项目只对你自己可见。</p>
+          <h2 className="text-2xl font-semibold">{registering ? '创建账号' : '登录工作台'}</h2>
+          <p className="mt-2 text-sm text-muted">
+            {mode === 'demo' ? '后端暂不可用，使用演示账号体验工作台。' : registering ? '使用邮箱注册，创建你的第一个项目。' : '使用邮箱和密码进入工作台。'}
+          </p>
 
           <label className="mt-8 block text-xs text-muted">
             邮箱
@@ -90,6 +106,8 @@ export function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="username"
+              maxLength={254}
+              required
             />
           </label>
 
@@ -100,18 +118,41 @@ export function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
+              autoComplete={registering ? 'new-password' : 'current-password'}
+              required
             />
           </label>
 
-          <p className="mt-3 h-5 text-xs text-error">{error}</p>
+          {registering && (
+            <label className="mt-4 block text-xs text-muted">
+              确认密码
+              <input
+                className="field mt-2"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
+                required
+              />
+            </label>
+          )}
+
+          <p role="status" className="mt-3 min-h-5 text-xs text-error">{error}</p>
 
           <Button type="submit" size="lg" className="mt-3 w-full" disabled={loading}>
-            {loading ? '登录中…' : '进入工作台'}
+            {registering ? (loading ? '注册中…' : '注册并进入工作台') : (loading ? '登录中…' : '进入工作台')}
           </Button>
 
-          <div className="mt-6 flex items-center justify-between text-xs text-muted">
-            <span>{mode === 'demo' ? '演示账号已预填' : '使用本机后端已创建的账号'}</span>
+          <div className="mt-6 flex items-center gap-2 text-xs text-muted">
+            {register ? <>
+              <span>{registering ? '已有账号？' : '还没有账号？'}</span>
+              <button type="button" className="text-fg underline underline-offset-4" disabled={loading} onClick={() => {
+                setCreatingAccount(!creatingAccount);
+                setPassword('');
+                setConfirmPassword('');
+                setError('');
+              }}>{registering ? '返回登录' : '注册账号'}</button>
+            </> : <span>连接后端后可注册账号</span>}
           </div>
         </form>
       </section>

@@ -105,11 +105,11 @@ def main():
             breakdown = client.request('POST', f"/api/episodes/{episode['id']}/breakdowns", {}, 202)['taskId']
             acceptance.until(lambda: client.request('GET', f'/api/tasks/{breakdown}')['ready'])
             shot = client.request('GET', f"/api/episodes/{episode['id']}/shots")[0]
-            client.request('PUT', f"/api/shots/{shot['id']}/status", {'status': 'confirmed'})
             me = client.request('GET', '/api/me')
             key = f"u/{int(me['id'])}/p/{int(project['id'])}/e/{int(episode['id'])}/shot/{int(shot['id'])}/phase4-first-frame.jpg"
             target = ROOT / 'data/storage' / key; target.parent.mkdir(parents=True, exist_ok=True); shutil.copyfile(source, target)
             image = sql(f"insert into shot_image(shot_id,episode_id,version,selected,storage_key,media_type,label) values ({int(shot['id'])},{int(episode['id'])},1,true,'{key}','image/jpeg','复用第四阶段样图') returning id")
+            client.request('PUT', f"/api/shots/{shot['id']}/status", {'status': 'confirmed'})
             summary.update(projectId=project['id'], episodeId=episode['id'], shotId=shot['id'], sourceImageId=image, reusedImage=str(source))
             # This exclusive marker is the hard limit, including ambiguous POST/network failures.
             with MARKER.open('x') as marker:

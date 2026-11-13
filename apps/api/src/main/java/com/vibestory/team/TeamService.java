@@ -107,9 +107,10 @@ public class TeamService {
         lockTeam(team);
         require(role(user, team, false).manages(invitedRole));
         String recipient = normalized(email);
-        if (db.fetchOne("""
-            select m.user_id from team_member m join app_user u on u.id=m.user_id where m.team_id=? and u.email=?
-            """, team, recipient) != null) throw ApiException.conflict("该账号已是团队成员");
+        var account = db.fetchOne("select id from app_user where email=?", recipient);
+        if (account == null) throw ApiException.badRequest("请让对方先注册账号，再发出邀请");
+        if (db.fetchOne("select user_id from team_member where team_id=? and user_id=?",
+                team, account.get(0, Long.class)) != null) throw ApiException.conflict("该账号已是团队成员");
         db.execute("""
             update team_invitation set status='EXPIRED' where team_id=? and email=? and status='PENDING' and expires_at<=now()
             """, team, recipient);

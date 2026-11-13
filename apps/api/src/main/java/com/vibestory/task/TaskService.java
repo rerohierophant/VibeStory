@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vibestory.common.ApiException;
 import com.vibestory.common.ScopeGuard;
+import com.vibestory.common.TextInput;
 import com.vibestory.storage.LocalStorage;
 import com.vibestory.breakdown.BreakdownService;
 import com.vibestory.image.ImageTaskService;
@@ -56,7 +57,19 @@ public class TaskService {
 
     @Transactional
     public Submission submit(long userId, long shotId, String nonce) {
-        return submitBatchMember(userId,shotId,nonce,false);
+        return submit(userId, shotId, nonce, null, null);
+    }
+
+    @Transactional
+    public Submission submit(long userId, long shotId, String nonce, Long expectedFirstFrameId, String prompt) {
+        if (prompt != null) {
+            TextInput.validate(prompt, 8000, "视频提示词");
+            if (prompt.replaceAll("[\\s\\p{Z}]+", " ").isBlank() || prompt.codePointCount(0, prompt.length()) > 2000)
+                throw ApiException.badRequest("视频提示词须为 1 至 2000 字符");
+            if (nonce == null || expectedFirstFrameId == null)
+                throw ApiException.badRequest("请确认本次生成的首帧和提示词");
+        }
+        return submitVideo(userId, shotId, nonce, prompt != null, expectedFirstFrameId, prompt);
     }
 
     @Transactional(noRollbackFor = ApiException.class)
@@ -67,6 +80,11 @@ public class TaskService {
     @Transactional(noRollbackFor = ApiException.class)
     public Submission submitBatchMember(long userId, long shotId, String nonce, boolean rejectConflictingActive,
                                         Long expectedFirstFrameId) {
+        return submitVideo(userId, shotId, nonce, rejectConflictingActive, expectedFirstFrameId, null);
+    }
+
+    private Submission submitVideo(long userId, long shotId, String nonce, boolean rejectConflictingActive,
+                                   Long expectedFirstFrameId, String promptOverride) {
         Record shot = scope.shot(userId, shotId);
         if (!"CONFIRMED".equals(shot.get("status", String.class))) throw ApiException.conflict("镜头确认后才能生成视频");
         Record image = db.fetchOne("select * from shot_image where shot_id = ? and selected and status = 'READY'", shotId);
@@ -74,10 +92,11 @@ public class TaskService {
         if (expectedFirstFrameId != null && !expectedFirstFrameId.equals(image.get("id", Long.class)))
             throw ApiException.conflict("当前选中的首帧已变化，请重新读取并确认");
         if (nonce!=null && (nonce.isBlank() || nonce.length()>128)) throw ApiException.badRequest("重新生成标识无效");
-        String prompt=shot.get("description",String.class);
+        String prompt = promptOverride == null ? shot.get("description", String.class) : promptOverride;
         boolean real=videoConfig.provider().equals("minimax");
         if(real) {
-            prompt += "；景别："+shot.get("shot_size",String.class)+"；运镜："+shot.get("camera_move",String.class);
+            if (promptOverride == null)
+                prompt += "；景别："+shot.get("shot_size",String.class)+"；运镜："+shot.get("camera_move",String.class);
             if(prompt.codePointCount(0,prompt.length())>2000) throw ApiException.badRequest("视频提示词不能超过 2000 字符");
             try(var stream=javax.imageio.ImageIO.createImageInputStream(storage.path(image.get("storage_key",String.class)).toFile())) {
                 if(stream==null) throw new java.io.IOException("首帧无效");
@@ -95,6 +114,18 @@ public class TaskService {
             image.get("id", Long.class), image.get("version", Long.class), image.get("storage_key", String.class),
             shot.get("duration_ms", Integer.class), Map.of("fps",24,"outputDurationMs",real?6000:3000), nonce,
             real?videoConfig.baseUrl().replaceAll("/+$",""):null, real?videoConfig.model():null));
+        if (promptOverride != null) {
+            var existing = db.fetchOne("""
+                select id, input_signature from task
+                where user_id=? and type='VIDEO' and target_id=? and input_snapshot->>'regenerateNonce'=?
+                order by id desc limit 1
+                """, userId, shotId, nonce);
+            if (existing != null) {
+                if (!input.signature().equals(existing.get("input_signature", String.class)))
+                    throw ApiException.conflict("此次生成已提交，请重新打开生成窗口");
+                return new Submission(existing.get("id", String.class));
+            }
+        }
         if(rejectConflictingActive && db.fetchOne("select id from task where user_id=? and type='VIDEO' and target_id=? and status in ('QUEUED','RUNNING') and input_signature<>? limit 1",userId,shotId,input.signature())!=null)
             throw ApiException.conflict("同镜头已有不同输入的活跃视频任务");
         var unknown=db.fetchOne("select id from task where user_id=? and type='VIDEO' and target_id=? and input_signature=? and status='UNKNOWN'",userId,shotId,input.signature());

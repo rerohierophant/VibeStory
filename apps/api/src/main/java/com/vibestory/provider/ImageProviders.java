@@ -23,5 +23,13 @@ public class ImageProviders {
             default -> throw new IllegalArgumentException("未知图片适配器");
         };
     }
+    public boolean supportsAssetReference(String targetType) {
+        var capability = capabilities(config.provider());
+        return switch (targetType) {
+            case "CHARACTER" -> capability.characterReferences() > 0;
+            case "SCENE" -> capability.sceneReferences();
+            default -> false;
+        };
+    }
     public boolean safeReplay(String provider) { return capabilities(provider).idempotencyKeySupported(); }
 }

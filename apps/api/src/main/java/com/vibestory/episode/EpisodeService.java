@@ -3,6 +3,7 @@ package com.vibestory.episode;
 import com.vibestory.common.ScopeGuard;
 import com.vibestory.common.ApiException;
 import com.vibestory.common.ProductionStatistics;
+import com.vibestory.common.ProjectDataCleanup;
 import com.vibestory.common.TextInput;
 import com.vibestory.storage.StorageCleanup;
 import java.util.List;
@@ -16,9 +17,12 @@ public class EpisodeService {
     private final ScopeGuard scope;
     private final ProductionStatistics statistics;
     private final StorageCleanup cleanup;
+    private final ProjectDataCleanup dataCleanup;
     private final DSLContext db;
-    public EpisodeService(EpisodeRepository episodes, ScopeGuard scope, ProductionStatistics statistics, StorageCleanup cleanup, DSLContext db) {
+    public EpisodeService(EpisodeRepository episodes, ScopeGuard scope, ProductionStatistics statistics, StorageCleanup cleanup,
+                          ProjectDataCleanup dataCleanup, DSLContext db) {
         this.episodes = episodes; this.scope = scope; this.statistics = statistics; this.cleanup = cleanup; this.db = db;
+        this.dataCleanup = dataCleanup;
     }
 
     @Transactional
@@ -80,6 +84,7 @@ public class EpisodeService {
         long projectId = scope.lockEpisode(userId, episodeId);
         for (var task : db.fetch("select id from task where episode_id=? and type='IMAGE'",episodeId))
             cleanup.enqueue("u/" + userId + "/p/" + projectId + "/images/" + task.get("id",Long.class));
+        dataCleanup.episode(userId, projectId, episodeId);
         episodes.delete(find(userId, episodeId));
         episodes.flush();
         cleanup.enqueue("u/" + userId + "/p/" + projectId + "/e/" + episodeId);

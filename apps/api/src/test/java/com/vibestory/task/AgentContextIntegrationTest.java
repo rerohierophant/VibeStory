@@ -53,7 +53,7 @@ class AgentContextIntegrationTest extends PostgresSupport {
     final String artifact=UUID.randomUUID().toString();
 
     @BeforeEach void setup() throws Exception {
-        db.execute("truncate app_user,storage_cleanup restart identity cascade");
+        resetDatabase(db);
         alice=viewer("context-owner@test");bob=viewer("context-other@test");
         project=db.fetchOne("insert into project(user_id,name,visual_type) values (?,'渐进压缩','realistic') returning id",alice.id()).get(0,Long.class);
         episode=db.fetchOne("insert into episode(user_id,project_id,episode_index,title,story_content) values (?,?,1,'雨巷',?) returning id",

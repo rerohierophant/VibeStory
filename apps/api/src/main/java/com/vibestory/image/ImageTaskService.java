@@ -7,6 +7,7 @@ import com.vibestory.common.*;
 import com.vibestory.experience.ImageExperience;
 import com.vibestory.provider.*;
 import com.vibestory.storage.LocalStorage;
+import com.vibestory.style.ReferenceImage;
 import com.vibestory.task.InputSignature;
 import com.vibestory.task.TaskService;
 import com.vibestory.style.VisualStyleService;
@@ -46,21 +47,11 @@ public class ImageTaskService {
     public TaskService.Submission submitBatchMember(long userId,long shotId,String nonce,boolean rejectConflictingActive) {
         var shot = scope.shot(userId, shotId);
         return submit(userId, shot.get("project_id", Long.class), shot.get("episode_id", Long.class),
-            shotInput(shot, shot.get("description", String.class), shot.get("shot_size", String.class),
-                shot.get("camera_move", String.class), nonce), rejectConflictingActive, null);
+            shotInput(shot, nonce), rejectConflictingActive);
     }
 
-    @Transactional
-    public TaskService.Submission submitVariant(long userId, long shotId, long revisionId,
-                                                String description, String size, String move) {
-        var shot = scope.shot(userId, shotId);
-        return submit(userId, shot.get("project_id", Long.class), shot.get("episode_id", Long.class),
-            shotInput(shot, description, size, move, "storyboard-variant:" + revisionId), false, revisionId);
-    }
-
-    private ImageProvider.Input shotInput(Record shot, String description, String size, String move, String nonce) {
+    private ImageProvider.Input shotInput(Record shot, String nonce) {
         long shotId = shot.get("id", Long.class);
-        if (!shot.get("status", String.class).equals("CONFIRMED")) throw ApiException.conflict("镜头确认后才能生成分镜图");
         var characters = new ArrayList<ImageProvider.AssetSnapshot>();
         var references = new ArrayList<ImageProvider.Reference>();
         ImageProvider.AssetSnapshot scene = new ImageProvider.AssetSnapshot(null, shot.get("scene_name", String.class), null, null);
@@ -84,7 +75,8 @@ public class ImageTaskService {
                     characters.add(new ImageProvider.AssetSnapshot(null, name.asText(), null, null));
         } catch (java.io.IOException error) { throw new IllegalStateException("镜头人物名称无效", error); }
         var sources = new ImageProvider.Sources(List.copyOf(characters), scene);
-        String prompt = description + "\n景别：" + size + "；运镜：" + move
+        String prompt = shot.get("description", String.class) + "\n景别：" + shot.get("shot_size", String.class)
+            + "；运镜：" + shot.get("camera_move", String.class)
             + "；场景：" + scene.name() + "；人物：" + String.join("、", characters.stream().map(ImageProvider.AssetSnapshot::name).toList()) + style(shot);
         return applyLearning(shot.get("user_id", Long.class), shot.get("project_id", Long.class),
             input("IMAGE", shotId, "SHOT", prompt, "16:9", sources, references, nonce), prompt, null, null, null);
@@ -108,17 +100,16 @@ public class ImageTaskService {
 
     @Transactional
     public TaskService.Submission submitCreative(long user, ImageExperience.TargetType type, long target, Long sourceTask,
-                                                String instruction, ImageProvider.RecipeUse recipe, UUID feedback, String nonce) {
+                                                String instruction, ImageProvider.RecipeUse recipe, UUID feedback, String nonce,
+                                                ReferenceImage.Encoded uploadedReference) {
         var row = experience.target(user, type, target);
         long project = row.get("project_id", Long.class);
         var current = type == ImageExperience.TargetType.SHOT ? scope.shot(user, target)
             : assets.lock(user, type == ImageExperience.TargetType.CHARACTER, target);
-        if (type == ImageExperience.TargetType.SHOT && !current.get("status", String.class).equals("CONFIRMED"))
-            throw ApiException.conflict("镜头确认后才能生成分镜图");
         ImageProvider.Input base;
         if (sourceTask == null) {
             base = type == ImageExperience.TargetType.SHOT
-                ? shotInput(current, current.get("description", String.class), current.get("shot_size", String.class), current.get("camera_move", String.class), nonce)
+                ? shotInput(current, nonce)
                 : assetInput(current, type == ImageExperience.TargetType.CHARACTER, nonce);
         } else {
             var source = db.fetchOne("""
@@ -129,8 +120,17 @@ public class ImageTaskService {
             base = input(source.get(0, String.class));
             if (recipe == null && base.learning() != null) recipe = base.learning().recipe();
         }
-        String prompt = (base.learning() == null ? base.prompt() : base.learning().basePrompt()) + "\n本轮用户要求：" + instruction;
-        var prepared = input(base.type(), target, type.name(), prompt, base.aspectRatio(), base.sources(), base.references(), nonce);
+        String prompt = base.learning() == null ? base.prompt() : base.learning().basePrompt();
+        if (!instruction.isBlank()) prompt += "\n本轮用户要求：" + instruction;
+        var references = base.references();
+        if (uploadedReference != null) {
+            references = List.of(assets.saveGenerationReference(user, project, type == ImageExperience.TargetType.CHARACTER, target, uploadedReference));
+        } else if (sourceTask != null && type != ImageExperience.TargetType.SHOT) {
+            // A new generation can reuse the prompt, but only a retry reuses a one-off upload.
+            references = references.stream().filter(ref -> !db.fetchExists(db.selectOne().from("asset_version")
+                .where("id=? and user_id=? and project_id=? and not visible_in_library", Long.parseLong(ref.versionId()), user, project))).toList();
+        }
+        var prepared = input(base.type(), target, type.name(), prompt, base.aspectRatio(), base.sources(), references, nonce);
         var guided = applyLearning(user, project, prepared, prompt, recipe, Objects.toString(sourceTask, null), feedback);
         Long episode = type == ImageExperience.TargetType.SHOT ? current.get("episode_id", Long.class) : null;
         return submit(user, project, episode, guided);
@@ -179,27 +179,27 @@ public class ImageTaskService {
     }
 
     private TaskService.Submission submit(long userId, long projectId, Long episodeId, ImageProvider.Input input) {
-        return submit(userId, projectId, episodeId, input, false, null);
+        return submit(userId, projectId, episodeId, input, false);
     }
 
-    private TaskService.Submission submit(long userId,long projectId,Long episodeId,ImageProvider.Input input, boolean rejectConflictingActive, Long variantRevision) {
+    private TaskService.Submission submit(long userId,long projectId,Long episodeId,ImageProvider.Input input, boolean rejectConflictingActive) {
         var frozen = signatures.of(input);
-        String signature = variantRevision == null ? frozen.signature() : signatures.of(List.of(variantRevision, input)).signature();
-        if(rejectConflictingActive && db.fetchOne("select id from task where user_id=? and type=? and target_type=? and target_id=? and status in ('QUEUED','RUNNING') and storyboard_variant_revision_id is null and input_signature<>? limit 1",userId,input.type(),input.targetType(),input.targetId(),signature)!=null)
+        String signature = frozen.signature();
+        if(rejectConflictingActive && db.fetchOne("select id from task where user_id=? and type=? and target_type=? and target_id=? and status in ('QUEUED','RUNNING') and input_signature<>? limit 1",userId,input.type(),input.targetType(),input.targetId(),signature)!=null)
             throw ApiException.conflict("同镜头已有不同输入的活跃图片任务");
         // Same submitted input cannot bypass UNKNOWN acknowledgement by clicking the regular submit button.
-        var existing = db.fetchOne("select id,status from task where user_id=? and type=? and target_type=? and target_id=? and input_signature=? and storyboard_variant_revision_id is not distinct from cast(? as bigint) and status in ('QUEUED','RUNNING','UNKNOWN') order by id desc limit 1",
-            userId, input.type(), input.targetType(), input.targetId(), signature, variantRevision);
+        var existing = db.fetchOne("select id,status from task where user_id=? and type=? and target_type=? and target_id=? and input_signature=? and status in ('QUEUED','RUNNING','UNKNOWN') order by id desc limit 1",
+            userId, input.type(), input.targetType(), input.targetId(), signature);
         if (existing != null) {
             if (existing.get("status", String.class).equals("UNKNOWN")) throw ApiException.conflict("同一输入的外部结果未知，请在原任务明确确认重试");
             return new TaskService.Submission(existing.get("id", String.class));
         }
         var row = db.fetchOne("""
-            insert into task(user_id,project_id,episode_id,type,target_type,target_id,provider,input_signature,input_snapshot,storyboard_variant_revision_id)
-            values (?,?,?,?,?,?,?, ?,?::jsonb,?)
+            insert into task(user_id,project_id,episode_id,type,target_type,target_id,provider,input_signature,input_snapshot)
+            values (?,?,?,?,?,?,?,?,?::jsonb)
             on conflict (user_id,type,target_type,target_id,input_signature) where status in ('QUEUED','RUNNING')
             do update set input_signature=excluded.input_signature returning id
-            """, userId, projectId, episodeId, input.type(), input.targetType(), input.targetId(), input.provider(), signature, frozen.json(), variantRevision);
+            """, userId, projectId, episodeId, input.type(), input.targetType(), input.targetId(), input.provider(), signature, frozen.json());
         return new TaskService.Submission(row.get("id", String.class));
     }
 
@@ -212,7 +212,7 @@ public class ImageTaskService {
     public void prepareRetry(long userId, Record task) {
         var input = input(task.get("input_snapshot", String.class));
         if (input.type().equals("IMAGE")) {
-            if (!scope.shot(userId, input.targetId()).get("status", String.class).equals("CONFIRMED")) throw ApiException.conflict("镜头确认后才能重试生成");
+            scope.shot(userId, input.targetId());
         } else assets.lock(userId, input.targetType().equals("CHARACTER"), input.targetId());
     }
 
@@ -222,21 +222,22 @@ public class ImageTaskService {
         String key = prefix + "/image." + (result.mediaType().equals("image/png") ? "png" : "jpg");
         assets.putFile(prefix, key, result.bytes());
         if (input.type().equals("IMAGE")) {
-            boolean visible = !db.fetchExists(db.selectOne().from("task").where("id=? and storyboard_variant_revision_id is not null", taskId));
-            boolean first = visible && db.fetchOne("select id from shot_image where shot_id=? and selected", input.targetId()) == null;
+            boolean first = db.fetchOne("select id from shot_image where shot_id=? and selected", input.targetId()) == null;
             long version = db.fetchOne("select coalesce(max(version),0)+1 from shot_image where shot_id=?", input.targetId()).get(0, Long.class);
             db.execute("""
-                insert into shot_image(shot_id,episode_id,version,selected,storage_key,input_snapshot,label,task_id,media_type,visible_in_storyboard)
-                values (?,?,?,?,?,?::jsonb,?,?,?,?)
-                """, input.targetId(), episodeId, version, first, key, encode(input.sources()), "候选 " + version, taskId, result.mediaType(), visible);
-        } else assets.addVersion(userId, projectId, input.targetType().equals("CHARACTER"), input.targetId(), "生成版本 " + taskId, "generated", key, result.mediaType(), taskId);
+                insert into shot_image(shot_id,episode_id,version,selected,storage_key,input_snapshot,label,task_id,media_type)
+                values (?,?,?,?,?,?::jsonb,?,?,?)
+                """, input.targetId(), episodeId, version, first, key, encode(input.sources()), "候选 " + version, taskId, result.mediaType());
+        } else assets.addVersion(userId, projectId, input.targetType().equals("CHARACTER"), input.targetId(), "生成版本 " + taskId,
+            "generated", key, result.mediaType(), taskId, input.learning() != null && input.learning().feedbackId() != null);
         db.execute("update task set output_snapshot=?::jsonb where id=?", encode(Map.of("ready", true, "guidance", input.guidance())), taskId);
     }
 
     @Transactional
     public void select(long userId, long shotId, long imageId) {
         scope.shot(userId, shotId);
-        if (db.fetchOne("select id from shot_image where id=? and shot_id=? and status='READY' and visible_in_storyboard", imageId, shotId) == null) throw ApiException.notFound();
+        if (db.fetchOne("select id from shot_image where id=? and shot_id=? and status='READY' and deleted_at is null",
+            imageId, shotId) == null) throw ApiException.notFound();
         db.execute("update shot_image set selected=false where shot_id=? and selected", shotId);
         db.execute("update shot_image set selected=true where id=?", imageId);
     }

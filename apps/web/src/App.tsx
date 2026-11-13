@@ -11,6 +11,7 @@ import { EpisodesPage } from '@/pages/EpisodesPage';
 import { EpisodeWorkspacePage } from '@/pages/EpisodeWorkspacePage';
 import { AssetLibraryPage } from '@/pages/AssetLibraryPage';
 import { AgentWorkbench } from '@/features/AgentWorkbench';
+import { CreativeRecipesPage } from '@/features/CreativeRecipes';
 import { TeamsPage } from '@/pages/TeamsPage';
 
 export function App() {
@@ -35,6 +36,7 @@ export function App() {
           <Route path="episodes/:episodeId/:tab?" element={<EpisodeWorkspacePage />} />
           <Route path="characters" element={<AssetLibraryPage kind="character" />} />
           <Route path="scenes" element={<AssetLibraryPage kind="scene" />} />
+          <Route path="recipes" element={<CreativeRecipesPage />} />
           <Route path="*" element={<Navigate to="" replace />} />
         </Route>
       </Route>

@@ -6,6 +6,8 @@ import com.vibestory.project.ProjectAccess;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.util.List;
+import java.util.Map;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -21,7 +23,8 @@ public class ShotController {
     public record Patch(@Size(max = 4000) String description, @Size(max = 4000) String dialogue, @Size(max = 120) String sceneName,
                         String shotSize, String cameraMove, @Min(1500) @Max(12000) Integer durationMs,
                         @PositiveOrZero Long expectedVersion) {}
-    public record Status(@NotNull @Pattern(regexp = "draft|confirmed") String status) {}
+    public record Status(@NotNull @Pattern(regexp = "draft|confirmed") String status, @Positive Long imageId) {}
+    public record FrameReview(Map<String, @NotNull String> frames) {}
 
     @GetMapping("/api/episodes/{episodeId}/shots")
     List<ShotService.View> list(@AuthenticationPrincipal Viewer viewer, @PathVariable long episodeId,
@@ -41,9 +44,19 @@ public class ShotController {
     @PutMapping("/api/shots/{shotId}/status")
     @Transactional
     ShotService.View status(@AuthenticationPrincipal Viewer viewer, @PathVariable long shotId, @Valid @RequestBody Status body) {
-        return workflow.shotStatus(access.edit(viewer.id(), SHOT, shotId).partitionUserId(), shotId, body.status());
+        return workflow.shotStatus(access.edit(viewer.id(), SHOT, shotId).partitionUserId(), shotId, body.status(), body.imageId());
+    }
+    @DeleteMapping("/api/shots/{shotId}/images/{imageId}")
+    @Transactional
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteCandidate(@AuthenticationPrincipal Viewer viewer, @PathVariable long shotId, @PathVariable long imageId) {
+        shots.deleteCandidate(access.edit(viewer.id(), SHOT, shotId).partitionUserId(), shotId, imageId);
     }
     @PostMapping("/api/episodes/{episodeId}/shots/confirm-all")
     @Transactional
-    List<ShotService.View> confirmAll(@AuthenticationPrincipal Viewer viewer, @PathVariable long episodeId) { return workflow.confirmShots(access.edit(viewer.id(), EPISODE, episodeId).partitionUserId(), episodeId); }
+    List<ShotService.View> confirmAll(@AuthenticationPrincipal Viewer viewer, @PathVariable long episodeId,
+                                     @Valid @RequestBody(required = false) FrameReview review) {
+        long user = access.edit(viewer.id(), EPISODE, episodeId).partitionUserId();
+        return workflow.confirmShots(user, episodeId, review == null ? null : review.frames());
+    }
 }

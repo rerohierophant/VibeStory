@@ -38,8 +38,6 @@ class PhaseFourAcceptance:
         scenes = c.request("GET", f"/api/projects/{self.project}/scenes")
         self.scene = next(s["id"] for s in scenes if s["name"] == scene_name)
         v1 = self.upload(c, "场景 v1")
-        c.request("POST", f"/api/shots/{self.shot}/image-tasks", {}, 409)
-        c.request("PUT", f"/api/shots/{self.shot}/status", {"status": "confirmed"})
         # This is the ONLY paid submission in real mode. No duplicate-submit or retry probe on a paid provider.
         self.task = c.request("POST", f"/api/shots/{self.shot}/image-tasks", {}, 202)["taskId"]
         if not self.real:
@@ -50,6 +48,8 @@ class PhaseFourAcceptance:
         image = shot["images"][0]
         assert image["inputSnapshot"]["scene"]["versionId"] == v1["id"]
         assert shot["selectedImageId"] == image["id"] and "stale" not in image
+        assert shot["status"] == "draft"
+        c.request("PUT", f"/api/shots/{self.shot}/status", {"status": "confirmed"})
         self.image_url = image["url"]
         payload = c.request("GET", self.image_url)
         assert payload.startswith(b"\x89PNG") or payload.startswith(b"\xff\xd8")

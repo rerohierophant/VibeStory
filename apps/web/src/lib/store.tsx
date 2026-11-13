@@ -1,7 +1,7 @@
 import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { api, ApiError, backendAvailable, type Schema } from './api';
+import { api, ApiError, backendAvailable, streamAgentReply, type Schema } from './api';
 import { LocalStoreProvider } from './localStore';
 import { StoreContext, type RuntimeConfig, type StoreValue } from './storeContext';
 import { defaultSettings, buildDemoShots } from './mock';
@@ -10,7 +10,7 @@ import type { Character, Project, SceneAsset, Shot, State } from './types';
 const empty: State = { user: null, projects: [], shots: [], characters: [], scenes: [], customStyles: [], settings: defaultSettings };
 const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 1000 }, mutations: { retry: false } } });
 type Workspace = State & { runtime?: RuntimeConfig; team?: Schema['TeamView'] };
-type EditVersion = { kind: 'project' | 'episode' | 'story' | 'shot'; id: string };
+type EditVersion = { kind: 'episode' | 'story' | 'shot'; id: string };
 type PendingEdit = { method: string; body: Record<string, unknown>; version?: EditVersion; key: string[]; teamId?: string };
 
 export function clearTeamWorkspace(cache: QueryClient, userId: string, teamId: string) {
@@ -24,7 +24,6 @@ export function clearTeamWorkspace(cache: QueryClient, userId: string, teamId: s
   }
   for (const episode of episodes) {
     cache.removeQueries({ queryKey: ['batches', userId, episode] });
-    cache.removeQueries({ queryKey: ['storyboard-variants', userId, episode] });
   }
   cache.removeQueries({ queryKey: ['workspace-team', userId, teamId] });
   cache.removeQueries({ queryKey: ['teams', userId, teamId] });
@@ -70,8 +69,8 @@ function ApiStoreProvider({ children }: { children: ReactNode }) {
   const timer = useRef<number | undefined>(undefined);
   const draining = useRef<Promise<void> | undefined>(undefined);
   const operations = useRef(new Map<string, Promise<unknown>>());
-  const session = useQuery({ queryKey: ['session'], queryFn: async () => {
-    try { return await api<Schema['Me']>('/api/me'); }
+  const session = useQuery({ queryKey: ['session'], queryFn: async ({ signal }) => {
+    try { return await api<Schema['Me']>('/api/me', 'GET', undefined, signal); }
     catch (cause) { if (cause instanceof ApiError && cause.status === 401) return null; throw cause; }
   }, retry: false });
   const key = useMemo(() => ['workspace', session.data?.id ?? 'anonymous', projectId ?? 'personal'], [session.data?.id, projectId]);
@@ -107,14 +106,13 @@ function ApiStoreProvider({ children }: { children: ReactNode }) {
     setError(cause instanceof Error ? cause.message : '操作失败，请重试');
   }
   function clearUserQueries() {
-    for (const prefix of ['workspace', 'workspace-team', 'teams', 'batches', 'episode-workflow', 'creative-project', 'creative-episode']) cache.removeQueries({ queryKey: [prefix] });
+    for (const prefix of ['workspace', 'workspace-team', 'teams', 'batches', 'episode-workflow', 'creative-project', 'creative-recipes', 'image-experience']) cache.removeQueries({ queryKey: [prefix] });
   }
   async function refresh() {
     await cache.invalidateQueries({ queryKey: keyRef.current.slice(0, 2), refetchType: 'none' });
     if (!edits.current.size && !draining.current) await Promise.all([
       cache.refetchQueries({ queryKey: keyRef.current, type: 'active' }),
       cache.invalidateQueries({ queryKey: ['episode-workflow', current.current.user?.id] }),
-      cache.invalidateQueries({ queryKey: ['creative-episode', current.current.user?.id] }),
       cache.invalidateQueries({ queryKey: ['creative-project', current.current.user?.id] }),
     ]);
   }
@@ -137,10 +135,10 @@ function ApiStoreProvider({ children }: { children: ReactNode }) {
             cache.setQueryData<Workspace>(change.key, s => {
               if (!s) return s;
               if (kind === 'shot') return { ...s, shots: s.shots.map(shot => shot.id === id ? { ...shot, version: saved.version } : shot) };
-              return { ...s, projects: s.projects.map(p => kind === 'project'
-                ? (p.id === id ? { ...p, version: saved.version } : p)
-                : { ...p, episodes: p.episodes.map(e => e.id === id
-                  ? { ...e, version: saved.version, storyRevision: saved.storyRevision } : e) }) };
+              return { ...s, projects: s.projects.map(p => ({
+                ...p, episodes: p.episodes.map(e => e.id === id
+                  ? { ...e, version: saved.version, storyRevision: saved.storyRevision } : e),
+              })) };
             });
             setConflictedPath(previous => previous === path ? undefined : previous);
           }
@@ -210,11 +208,19 @@ function ApiStoreProvider({ children }: { children: ReactNode }) {
           cache.setQueryData<Workspace>(targetKey, s => s && ({ ...s, shots: [...s.shots.filter(x => x.episodeId !== id), ...shots as Shot[]],
             projects: s.projects.map(p => ({ ...p, episodes: p.episodes.map(e => e.id === id ? { ...episode, breakdownTask: task } as typeof e : e) })) }));
         }
-        if ([...snapshot.characters, ...snapshot.scenes].some(a => ['queued', 'running'].includes(a.generationState ?? 'idle')) || episodes.size) {
+        const assetImageActive = [...snapshot.characters, ...snapshot.scenes].some(a => ['queued', 'running'].includes(a.generationState ?? 'idle'));
+        if (assetImageActive || episodes.size) {
           const path = targetKey[2] === 'personal' ? '/api/assets' : `/api/projects/${targetKey[2]}`;
-          const [characters, scenes] = await Promise.all([api<Schema['AssetCard'][]>(`${path}/characters`), api<Schema['AssetCard'][]>(`${path}/scenes`)]);
+          const imageActive = assetImageActive || snapshot.shots.some(s => ['queued', 'running'].includes(s.imageState));
+          const [characters, scenes] = await Promise.all([
+            api<Schema['AssetCard'][]>(`${path}/characters`), api<Schema['AssetCard'][]>(`${path}/scenes`),
+          ]);
+          const project = imageActive && targetKey[2] !== 'personal' ? await api<Schema['Project']>(path) : undefined;
           if (!edits.current.size && !draining.current && current.current.user?.id === owner && targetKey[2] === keyRef.current[2])
-            cache.setQueryData<Workspace>(targetKey, s => s && ({ ...s, characters: characters as Character[], scenes: scenes as SceneAsset[] }));
+            cache.setQueryData<Workspace>(targetKey, s => s && ({
+              ...s, characters: characters as Character[], scenes: scenes as SceneAsset[],
+              projects: project ? s.projects.map(p => p.id === project.id ? { ...p, styleEditable: project.styleEditable } : p) : s.projects,
+            }));
         }
       } catch (cause) { report(cause); }
       finally { polling = false; }
@@ -223,6 +229,14 @@ function ApiStoreProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(interval);
   }, [cache]);
   useEffect(() => { if (workspace.error) report(workspace.error); if (session.error) report(session.error); }, [workspace.error, session.error]);
+
+  async function authenticate(action: 'login' | 'register', email: string, password?: string) {
+    const me = await api<Schema['Me']>(`/api/auth/${action}`, 'POST', { email, password });
+    await cache.cancelQueries({ queryKey: ['session'] });
+    clearUserQueries();
+    cache.setQueryData(['session'], me);
+    setError('');
+  }
 
   const value: StoreValue = {
     ...state, mode: 'api', saving, error, workspaceLoading: !!projectId && workspace.isPending,
@@ -233,15 +247,13 @@ function ApiStoreProvider({ children }: { children: ReactNode }) {
       setConflictedPath(undefined);
       void flush().then(refresh).then(() => setError('')).catch(() => {});
     } : undefined,
-    login: async (email, password) => {
-      const me = await api<Schema['Me']>('/api/auth/login', 'POST', { email, password });
-      clearUserQueries(); cache.setQueryData(['session'], me);
-    },
+    login: (email, password) => authenticate('login', email, password),
+    register: (email, password) => authenticate('register', email, password),
     logout: () => run('logout', async () => { await api('/api/auth/logout', 'POST'); clearUserQueries(); cache.setQueryData(['session'], null); }),
     createProject: input => perform('create-project', async () => (await api<Schema['Project']>('/api/projects', 'POST', input)).id!),
-    updateProject: (id, patch) => edit(`/api/projects/${id}`,
-      { ...patch, expectedVersion: team ? current.current.projects.find(p => p.id === id)?.version : undefined },
-      s => ({ ...s, projects: s.projects.map(p => p.id === id ? { ...p, ...patch } : p) }), 'PATCH', { kind: 'project', id }),
+    updateProjectStyle: (id, input, expectedVersion) => perform(`project-style-${id}`, async () => {
+      await api<Schema['Project']>(`/api/projects/${id}`, 'PATCH', { ...input, expectedVersion });
+    }),
     renameProject: (id, name) => run(`rename-${id}`, () => api(`/api/projects/${id}`, 'PATCH', { name })),
     deleteProject: id => run(`delete-${id}`, () => api(`/api/projects/${id}`, 'DELETE')),
     createEpisode: projectId => perform(`create-episode-${projectId}`, async () => (await api<Schema['Episode']>(`/api/projects/${projectId}/episodes`, 'POST', {})).id!),
@@ -249,38 +261,42 @@ function ApiStoreProvider({ children }: { children: ReactNode }) {
       { ...patch, expectedVersion: team ? current.current.projects.flatMap(p => p.episodes).find(e => e.id === id)?.version : undefined },
       s => ({ ...s, projects: s.projects.map(p => ({ ...p, episodes: p.episodes.map(e => e.id === id ? { ...e, ...patch } : e) })) }),
       'PATCH', { kind: 'episode', id }),
+    deleteEpisode: id => perform(`delete-episode-${id}`, () => api<void>(`/api/episodes/${id}`, 'DELETE')),
     setEpisodeStory: (id, story) => edit(`/api/episodes/${id}/story`,
       { story, expectedStoryRevision: team ? current.current.projects.flatMap(p => p.episodes).find(e => e.id === id)?.storyRevision : undefined },
       s => ({ ...s, projects: s.projects.map(p => ({ ...p, episodes: p.episodes.map(e => e.id === id ? { ...e, story, breakdown: e.breakdown === 'done' ? 'idle' : e.breakdown } : e) })) }),
       'PUT', { kind: 'story', id }),
     performCreative: (key, action) => perform(`creative-${key}`, action),
-    runBreakdown: id => run(`breakdown-${id}`, () => api(`/api/episodes/${id}/breakdowns`, 'POST', { replaceExisting: current.current.shots.some(s => s.episodeId === id) })),
+    runBreakdown: (id, replaceExisting) => run(`breakdown-${id}`, () => api(`/api/episodes/${id}/breakdowns`, 'POST', { replaceExisting })),
     updateShot: (id, patch) => {
       const version = (cache.getQueryData<Workspace>(keyRef.current) ?? current.current).shots.find(shot => shot.id === id)?.version;
       edit(`/api/shots/${id}`, { ...patch, expectedVersion: version },
         s => ({ ...s, shots: s.shots.map(shot => shot.id === id ? { ...shot, ...patch } : shot) }), 'PATCH', { kind: 'shot', id });
     },
-    sendAgentMessage: (conversationId, requestKey, input) => perform(`agent-${requestKey}`, () =>
-      api<Schema['Transcript']>(`/api/agent/conversations/${conversationId}/messages`, 'POST', input)),
+    sendAgentMessage: (conversationId, requestKey, input, onEvent) => perform(`agent-${requestKey}`, () =>
+      streamAgentReply(`/api/agent/conversations/${conversationId}/messages/stream`, input, onEvent)),
     confirmAgentWorkflow: (conversationId, workflowId) => perform(`agent-workflow-${workflowId}`, () =>
       api<Schema['Transcript']>(`/api/agent/conversations/${conversationId}/workflows/${workflowId}/confirm`, 'POST')),
     decideShotEdit: (episodeId, id, decision) => perform(`shot-edit-${id}-${decision}`, () =>
       api<Schema['Proposal']>(`/api/episodes/${episodeId}/shot-edit-proposals/${id}/${decision}`, 'POST')),
-    confirmShot: id => run(`status-${id}`, () => api(`/api/shots/${id}/status`, 'PUT', { status: 'confirmed' })),
-    unconfirmShot: id => run(`status-${id}`, () => api(`/api/shots/${id}/status`, 'PUT', { status: 'draft' })),
-    confirmAll: id => run(`confirm-${id}`, () => api(`/api/episodes/${id}/shots/confirm-all`, 'POST', {})),
-    generateImage: id => run(`image-${id}`, () => {
+    confirmShot: (id, imageId) => perform(`status-${id}`, () => api(`/api/shots/${id}/status`, 'PUT', { status: 'confirmed', imageId: Number(imageId) })),
+    unconfirmShot: id => perform(`status-${id}`, () => api(`/api/shots/${id}/status`, 'PUT', { status: 'draft' })),
+    deleteShotImage: (shotId, imageId) => perform(`delete-image-${imageId}`, () =>
+      api<void>(`/api/shots/${shotId}/images/${imageId}`, 'DELETE')),
+    confirmAll: (id, frames) => perform(`confirm-${id}`, () => api(`/api/episodes/${id}/shots/confirm-all`, 'POST', { frames })),
+    generateImage: id => perform(`image-${id}`, () => {
       const shot = current.current.shots.find(s => s.id === id)!;
       return retryOrGenerate({ state: shot.imageState, taskId: shot.imageTaskId, retryable: shot.imageRetryable },
         () => api(`/api/shots/${id}/image-tasks`, 'POST', shot.images.length ? { regenerateNonce: crypto.randomUUID() } : {}));
     }),
     submitBatch: (episodeId, type, requestKey, shotIds, regenerate) => perform(`batch-${episodeId}-${type}`, () => api<Schema['GenerationBatch']>(`/api/episodes/${episodeId}/generation-batches`, 'POST', { type, requestKey, shotIds, regenerate })),
-    selectImage: (id, imageId) => run(`select-image-${id}`, () => api(`/api/shots/${id}/selected-image`, 'PUT', { imageId: Number(imageId) })),
-    generateVideo: id => run(`video-${id}`, () => {
+    generateVideo: (id, regeneration) => perform(`video-${id}`, () => {
+      const path = `/api/shots/${id}/video-tasks`;
+      if (regeneration) return api(path, 'POST', regeneration);
       const shot = current.current.shots.find(s => s.id === id)!;
-      return retryOrGenerate(shot.video, () => api(`/api/shots/${id}/video-tasks`, 'POST', shot.video.ready ? { regenerateNonce: crypto.randomUUID() } : {}));
+      return retryOrGenerate(shot.video, () => api(path, 'POST', {}));
     }),
-    addAssetVersion: (kind, id, source, file) => run(`asset-${kind}-${id}`, async () => {
+    addAssetVersion: (kind, id, source, file) => perform(`asset-${kind}-${id}`, async () => {
       const path = `/api/assets/${kind === 'character' ? 'characters' : 'scenes'}/${id}`;
       if (source === 'uploaded') {
         if (!file) return; const body = new FormData(); body.append('file', file); body.append('label', file.name.replace(/\.[^.]+$/, ''));
@@ -292,7 +308,7 @@ function ApiStoreProvider({ children }: { children: ReactNode }) {
         return retryOrGenerate({ state: task.state!, taskId: task.id, retryable: task.retryable, resumable: task.resumable }, () => Promise.resolve());
       }
       return api(`${path}/image-tasks`, 'POST', { regenerateNonce: crypto.randomUUID() });
-    }),
+    }).catch(() => {}),
     selectAssetVersion: (kind, id, versionId) => run(`select-asset-${kind}-${id}`, () => api(`/api/assets/${kind === 'character' ? 'characters' : 'scenes'}/${id}/selected-version`, 'PUT', { versionId: Number(versionId) })),
     saveSettings: () => setError('模型由后端本机环境配置，当前页面只展示实际配置'),
     addCustomStyle: input => perform('custom-style', async () => {
@@ -317,8 +333,10 @@ function ConnectionNotice() {
       <button onClick={store.dismissError}>关闭</button>
     </div>
   </div>;
+  if (store.mode === 'api' && !store.saving) return null;
+
   return <div className="fixed bottom-2 right-3 z-20 rounded bg-panel/90 px-2 py-1 text-[10px] text-muted">
-    {store.mode === 'demo' ? <>离线演示 · 数据仅保存在浏览器 <button className="ml-2 underline" onClick={() => location.reload()}>重新连接</button></> : store.saving ? '修改正在保存…' : '后端已连接'}
+    {store.mode === 'demo' ? <>离线演示 · 数据仅保存在浏览器 <button className="ml-2 underline" onClick={() => location.reload()}>重新连接</button></> : '修改正在保存…'}
   </div>;
 }
 export function StoreProvider({ children }: { children: ReactNode }) {

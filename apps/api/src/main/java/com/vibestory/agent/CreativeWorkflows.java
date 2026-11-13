@@ -3,9 +3,11 @@ package com.vibestory.agent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vibestory.admission.AdmissionProperties;
+import com.vibestory.agent.CreativeSkill.AssetDraft;
 import com.vibestory.agent.CreativeSkill.EpisodeDraft;
 import com.vibestory.agent.CreativeSkill.Role;
 import com.vibestory.agent.CreativeSkill.ScriptDraft;
+import com.vibestory.asset.AssetService;
 import com.vibestory.common.ApiException;
 import com.vibestory.common.ScopeGuard;
 import com.vibestory.common.TextInput;
@@ -25,14 +27,17 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class CreativeWorkflows {
     public enum CreativeState { QUEUED, RUNNING, READY, APPLIED, FAILED, UNKNOWN }
-    public record CreativeSource(String id, String name, int characters) {}
+    public enum SourceKind { MANUSCRIPT, IDEA }
+    public record CreativeSource(String id, String name, int characters, SourceKind kind, String ideaText) {}
     public record CreativeTurn(UUID id, UUID sessionId, Role role, CreativeState state, String summary, String error,
                                UUID scriptId, UUID previousId, boolean current, List<String> appliedIds) {}
-    public record CreativeProject(CreativeSource source, CreativeTurn plan) {}
+    public record CreativeProject(CreativeSource source, CreativeTurn plan, String planPreviewText) {}
     public record CreativeEpisode(UUID mainSessionId, UUID scriptSessionId, UUID storyboardSessionId,
                                   CreativeTurn script, CreativeTurn storyboard) {}
-    public record EpisodePreview(String title, String summary, int start, int end, String opening, String closing) {}
-    public record CreativePlanPreview(UUID id, List<EpisodePreview> episodes) {}
+    public record EpisodePreview(String title, String summary, Integer start, Integer end, String opening, String closing,
+                                 String story) {}
+    public record CreativePlanPreview(UUID id, List<EpisodePreview> episodes, List<AssetDraft> characters, List<AssetDraft> scenes) {}
+    record PlanDraft(List<EpisodeDraft> episodes, List<AssetDraft> characters, List<AssetDraft> scenes) {}
     public record CreativeStoryboard(UUID id, List<TextProvider.ShotDraft> shots) {}
 
     private static final int EPISODE_LIMIT = 32_000;
@@ -43,9 +48,10 @@ public class CreativeWorkflows {
     private final AdmissionProperties admission;
     private final EpisodeService episodes;
     private final ShotService shots;
+    private final AssetService assets;
 
     CreativeWorkflows(DSLContext db, ScopeGuard scope, ObjectMapper json, CreativeModel model, AdmissionProperties admission,
-                      EpisodeService episodes, ShotService shots) {
+                      EpisodeService episodes, ShotService shots, AssetService assets) {
         this.db = db;
         this.scope = scope;
         this.json = json;
@@ -53,31 +59,50 @@ public class CreativeWorkflows {
         this.admission = admission;
         this.episodes = episodes;
         this.shots = shots;
+        this.assets = assets;
     }
 
     @Transactional
-    public CreativeSource upload(long user, long project, UUID key, String name, String body) {
+    public CreativeSource upload(long user, long project, UUID key, String name, String body, SourceKind kind) {
         lockProject(user, project);
-        name = TextInput.name(name, "来源文件名");
+        if (kind == null) kind = SourceKind.MANUSCRIPT;
+        name = TextInput.name(name, "来源名称");
         TextInput.validate(body, 1024 * 1024, "项目原文");
-        if (body.strip().length() < 20) throw ApiException.badRequest("项目原文至少需要 20 字符");
+        if (kind == SourceKind.IDEA) {
+            if (body.strip().length() < 10 || body.length() > 3000)
+                throw ApiException.badRequest("故事想法须为 10 至 3000 字符");
+        } else if (body.strip().length() < 20) throw ApiException.badRequest("剧本至少需要 20 字符");
         var previous = db.fetchOne("select * from creative_source where project_id=? and request_key=?", project, key);
         if (previous != null) {
-            if (!name.equals(previous.get("name", String.class)) || !body.equals(previous.get("body", String.class)))
+            if (!name.equals(previous.get("name", String.class)) || !body.equals(previous.get("body", String.class))
+                || !kind.name().equals(previous.get("kind", String.class)))
                 throw ApiException.conflict("同一上传标识不能用于不同原文");
             return source(previous);
         }
-        return source(db.fetchOne("insert into creative_source(project_id,request_key,name,body) values (?,?,?,?) returning *",
-            project, key, name, body));
+        return source(db.fetchOne("insert into creative_source(project_id,request_key,name,body,kind) values (?,?,?,?,?) returning *",
+            project, key, name, body, kind.name()));
     }
 
     @Transactional(readOnly = true)
     public CreativeProject project(long user, long project) {
+        return project(user, project, false);
+    }
+
+    @Transactional(readOnly = true)
+    public CreativeProject project(long user, long project, boolean includePageContent) {
         scope.personalProject(user, project);
-        var source = db.fetchOne("select id,name,char_length(body) as characters from creative_source where project_id=? order by id desc limit 1", project);
-        var plan = latest(sessionId(project, null, Role.PLAN));
-        return new CreativeProject(source == null ? null : new CreativeSource(source.get("id", String.class), source.get("name", String.class), source.get("characters", Integer.class)),
-            plan == null ? null : turn(plan, Role.PLAN, source != null && sameLong(plan, "source_id", source, "id")));
+        var source = db.fetchOne("""
+            select id,name,kind,char_length(body) as characters,case when ? and kind='IDEA' then body end as idea_text
+            from creative_source where project_id=? order by id desc limit 1
+            """, includePageContent, project);
+        var session = sessionId(project, null, Role.PLAN);
+        var plan = latest(session, includePageContent);
+        boolean current = plan != null && source != null && sameLong(plan, "source_id", source, "id");
+        String preview = includePageContent && current && state(plan) == CreativeState.RUNNING
+            ? plan.get("plan_preview_text", String.class) : null;
+        return new CreativeProject(source == null ? null : new CreativeSource(source.get("id", String.class), source.get("name", String.class),
+                source.get("characters", Integer.class), SourceKind.valueOf(source.get("kind", String.class)), source.get("idea_text", String.class)),
+            plan == null ? null : turn(plan, Role.PLAN, current), preview);
     }
 
     @Transactional
@@ -87,7 +112,7 @@ public class CreativeWorkflows {
         var old = replay(session, key, instruction, null);
         if (old != null) return turn(old, Role.PLAN, sameSource(project, old));
         var source = latestSource(project);
-        if (source == null) throw ApiException.conflict("请先在项目概览上传整部原文");
+        if (source == null) throw ApiException.conflict("请先在项目概览导入剧本或输入故事想法");
         if (db.fetchExists(db.selectOne().from("creative_turn").where("session_id=? and source_id=? and state='APPLIED'", session, source.get("id"))))
             throw ApiException.conflict("该来源已创建分集");
         return turn(enqueue(session, key, instruction, source.get("id", Long.class), null, null, null, null, null), Role.PLAN, true);
@@ -99,12 +124,15 @@ public class CreativeWorkflows {
         var row = requireTurn(project, null, Role.PLAN, id);
         requireResult(row);
         var body = db.fetchOne("select body from creative_source where id=? and project_id=?", row.get("source_id"), project).get(0, String.class);
-        return new CreativePlanPreview(id, drafts(row).stream().map(draft -> {
+        var plan = drafts(row);
+        return new CreativePlanPreview(id, plan.episodes().stream().map(draft -> {
+            if (draft.story() != null)
+                return new EpisodePreview(draft.title(), draft.summary(), null, null, null, null, draft.story());
             String part = body.substring(draft.start(), draft.end()).strip();
             int size = part.codePointCount(0, part.length());
             return new EpisodePreview(draft.title(), draft.summary(), draft.start(), draft.end(), CreativeSkill.clip(part, 100),
-                part.substring(part.offsetByCodePoints(0, Math.max(0, size - 100))));
-        }).toList());
+                part.substring(part.offsetByCodePoints(0, Math.max(0, size - 100))), null);
+        }).toList(), plan.characters(), plan.scenes());
     }
 
     @Transactional
@@ -119,14 +147,17 @@ public class CreativeWorkflows {
         long sourceId = source.get("id", Long.class);
         String body = source.get("body", String.class);
         var ids = new ArrayList<Long>();
-        for (var draft : drafts(row)) {
+        var plan = drafts(row);
+        for (var draft : plan.episodes()) {
             var created = episodes.create(user, project, draft.title());
             long episode = Long.parseLong(created.id());
             episodes.update(user, episode, null, draft.summary(), null);
-            episodes.story(user, episode, body.substring(draft.start(), draft.end()));
+            episodes.story(user, episode, draft.story() == null ? body.substring(draft.start(), draft.end()) : draft.story());
             db.execute("insert into creative_episode_source values (?,?,?,?,?)", episode, sourceId, id, draft.start(), draft.end());
             ids.add(episode);
         }
+        assets.addPlanned(user, project, true, plan.characters());
+        assets.addPlanned(user, project, false, plan.scenes());
         return turn(applied(id, ids), Role.PLAN, true);
     }
 
@@ -272,7 +303,7 @@ public class CreativeWorkflows {
             }
             var board = java.util.Arrays.asList(strictDraft(draft.path("shots"), TextProvider.ShotDraft[].class));
             new com.vibestory.provider.ShotDraftValidation().validate(board);
-            result = board;
+            result = board.stream().map(TextProvider.ShotDraft::withDefaultDuration).toList();
             summary = "分镜草案包含 " + board.size() + " 镜，待审阅应用";
         }
         // Draft creation preserves the frozen input; applying it still checks the current revisions.
@@ -393,17 +424,22 @@ public class CreativeWorkflows {
         return row;
     }
 
-    private static final String TURN_SUMMARY = """
-        select id,session_id,source_id,script_id,previous_id,story_revision,shot_revision,state,summary,error,applied_ids
+    private static final String TURN_FIELDS = """
+        id,session_id,source_id,script_id,previous_id,story_revision,shot_revision,state,summary,error,applied_ids
         from creative_turn where session_id=?
         """;
 
     private Record latest(UUID session) {
-        return session == null ? null : db.fetchOne(TURN_SUMMARY + " order by seq desc limit 1", session);
+        return latest(session, false);
+    }
+
+    private Record latest(UUID session, boolean includePlanPreview) {
+        String columns = includePlanPreview ? "plan_preview_text, " : "";
+        return session == null ? null : db.fetchOne("select " + columns + TURN_FIELDS + " order by seq desc limit 1", session);
     }
 
     private Record latestReady(UUID session) {
-        return session == null ? null : db.fetchOne(TURN_SUMMARY + " and state in ('READY','APPLIED') order by seq desc limit 1", session);
+        return session == null ? null : db.fetchOne("select " + TURN_FIELDS + " and state in ('READY','APPLIED') order by seq desc limit 1", session);
     }
 
     private Record latestSource(long project) {
@@ -447,7 +483,8 @@ public class CreativeWorkflows {
 
     private CreativeSource source(Record row) {
         String body = row.get("body", String.class);
-        return new CreativeSource(row.get("id", String.class), row.get("name", String.class), body.codePointCount(0, body.length()));
+        return new CreativeSource(row.get("id", String.class), row.get("name", String.class), body.codePointCount(0, body.length()),
+            SourceKind.valueOf(row.get("kind", String.class)), null);
     }
 
     private CreativeTurn turn(Record row, Role role, boolean current) {
@@ -458,9 +495,13 @@ public class CreativeWorkflows {
             ids == null ? List.of() : Arrays.stream(ids).map(String::valueOf).toList());
     }
 
-    List<EpisodeDraft> drafts(Record row) {
+    PlanDraft drafts(Record row) {
         String result = row.get("result", String.class);
-        return result == null ? List.of() : Arrays.asList(decode(result, EpisodeDraft[].class));
+        if (result == null) return new PlanDraft(List.of(), List.of(), List.of());
+        // Earlier plans persisted only the array of manuscript ranges.
+        if (result.stripLeading().startsWith("["))
+            return new PlanDraft(Arrays.asList(decode(result, EpisodeDraft[].class)), List.of(), List.of());
+        return decode(result, PlanDraft.class);
     }
 
     List<TextProvider.ShotDraft> storyboardShots(Record row) {

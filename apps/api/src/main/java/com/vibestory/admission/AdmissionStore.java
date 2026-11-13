@@ -36,7 +36,10 @@ public class AdmissionStore {
     @Transactional
     public void record(UUID id,long task,String bucket,Long epoch,String outcome,String reason,Long redisAt,long retry) {
         // A concurrent deletion is an expected lost race, not a business failure.
-        db.execute("insert into generation_admission(id,task_id,bucket_id,epoch,outcome,reason,redis_at_ms,retry_after_ms) select ?,id,?,?,?,?,?,? from task where id=?",id,bucket,epoch,outcome,reason,redisAt,retry,task);
+        db.execute("""
+            insert into generation_admission(id,task_id,bucket_id,epoch,outcome,reason,redis_at_ms,retry_after_ms)
+            select ?,id,?,?,?,?,?,? from task where id=? for key share
+            """, id,bucket,epoch,outcome,reason,redisAt,retry,task);
     }
     @Transactional
     public boolean defer(TaskNotification event,String reason,long retryMs) {

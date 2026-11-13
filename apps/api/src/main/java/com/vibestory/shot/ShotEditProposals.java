@@ -94,14 +94,12 @@ public class ShotEditProposals {
         if (append && !before.isBlank()) description = before + "\n" + description;
         TextInput.validate(description, 16000, "画面描述");
         if (description.equals(before)) throw ApiException.badRequest("画面描述没有变化");
-        if (generate && !"CONFIRMED".equals(shot.get("status", String.class)))
-            throw ApiException.conflict("请先确认这镜，再修改画面描述并生成新候选");
         return insert(episodeId, requestKey, instruction, shot, null, null, description, generate);
     }
 
     private Record shot(long userId, long projectId, long episodeId, int number) {
         var shot = db.fetchOne("""
-            select id, version, shot_size, dialogue, description, status from shot
+            select id, version, shot_size, dialogue, description from shot
             where episode_id = ? and project_id = ? and user_id = ? and seq = ?
             """, episodeId, projectId, userId, number);
         if (shot == null) throw ApiException.notFound();

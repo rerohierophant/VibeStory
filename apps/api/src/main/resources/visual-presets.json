@@ -30,7 +30,6 @@
     "label": "张艺谋风格",
     "hint": "极致用色 · 仪式感",
     "image": "/style/zhangyimou-pinterest.jpg",
-    "imagePosition": "50% 48%",
     "tone": [
       "#4a1414",
       "#c0392b"
@@ -69,6 +68,7 @@
     "label": "都市言情",
     "hint": "柔光 · 生活质感",
     "image": "/style/urban-pinterest.jpg",
+    "imagePosition": "50% 22%",
     "tone": [
       "#3e3a3a",
       "#c3a9a0"
@@ -106,7 +106,7 @@
     "label": "年代烟火",
     "hint": "暖褐褪色 · 胶片味",
     "image": "/style/retro-pinterest.jpg",
-    "imagePosition": "50% 88%",
+    "imagePosition": "50% 72%",
     "tone": [
       "#3c2f24",
       "#b08b5f"
@@ -157,7 +157,7 @@
     "label": "美漫硬派",
     "hint": "粗描边 · 强阴影",
     "image": "/style/american-pinterest.jpg",
-    "imagePosition": "50% 28%",
+    "imagePosition": "50% 24%",
     "tone": [
       "#1c1c22",
       "#c9a227"
@@ -170,7 +170,7 @@
     "label": "少女漫",
     "hint": "柔光 · 粉彩",
     "image": "/style/shojo-pinterest.jpg",
-    "imagePosition": "50% 24%",
+    "imagePosition": "50% 44%",
     "tone": [
       "#4a3548",
       "#e0b7cf"
@@ -187,6 +187,18 @@
     "tone": [
       "#1d2b1f",
       "#5f9e63"
+    ],
+    "custom": false
+  },
+  {
+    "id": "storybook",
+    "category": "comic",
+    "label": "手绘童话",
+    "hint": "手绘背景 · 明亮自然光",
+    "image": "/style/storybook-pinterest.jpg",
+    "tone": [
+      "#314833",
+      "#90b7aa"
     ],
     "custom": false
   },
@@ -234,7 +246,7 @@
     "label": "黑白默片",
     "hint": "高反差 · 硬光",
     "image": "/style/noir-pinterest.jpg",
-    "imagePosition": "50% 40%",
+    "imagePosition": "50% 28%",
     "tone": [
       "#141414",
       "#c9c9c9"
@@ -275,6 +287,19 @@
     "tone": [
       "#33291f",
       "#c08552"
+    ],
+    "custom": false
+  },
+  {
+    "id": "woodblock",
+    "category": "stylized",
+    "label": "木版印刷",
+    "hint": "分色套印 · 纸纹与色块",
+    "image": "/style/woodblock-pinterest.jpg",
+    "imagePosition": "50% 65%",
+    "tone": [
+      "#233f57",
+      "#c3a5bc"
     ],
     "custom": false
   }

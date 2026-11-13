@@ -51,7 +51,7 @@ class BackendIntegrationTest extends PostgresSupport {
     private long imageId;
 
     @BeforeEach void setup() throws Exception {
-        db.execute("truncate app_user, project, episode, shot, shot_image, task, task_attempt, video, storage_cleanup restart identity cascade");
+        resetDatabase(db);
         alice = account("alice@example.test");
         bob = account("bob@example.test");
         projectId = responseId(mvc.perform(post("/api/projects").with(user(alice)).with(csrf())
@@ -99,6 +99,56 @@ class BackendIntegrationTest extends PostgresSupport {
         mvc.perform(post("/api/projects").with(user(alice)).with(csrf()).contentType(MediaType.APPLICATION_JSON)
             .content("{\"name\":\"a\",\"visualType\":\"made-up\"}"))
             .andExpect(status().isBadRequest());
+    }
+
+    @Test void registrationCreatesAnIsolatedAccountAndRotatesSessionAndCsrf() throws Exception {
+        String credentials = "{\"email\":\"Creator@Example.test\",\"password\":\"test-password\"}";
+        mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(credentials))
+            .andExpect(status().isForbidden());
+        var csrfResult = mvc.perform(get("/api/auth/csrf")).andExpect(status().isOk()).andReturn();
+        var session = (MockHttpSession) csrfResult.getRequest().getSession();
+        String oldId = session.getId();
+        String token = body(csrfResult).get("token").asText();
+        var registered = mvc.perform(post("/api/auth/register").session(session).header("X-CSRF-TOKEN", token)
+                .contentType(MediaType.APPLICATION_JSON).content(credentials))
+            .andExpect(status().isCreated()).andExpect(jsonPath("$.email").value("creator@example.test"))
+            .andExpect(jsonPath("$.passwordHash").doesNotExist()).andReturn();
+        assertThat(session.getId()).isNotEqualTo(oldId);
+        var account = users.findByEmail("creator@example.test").orElseThrow();
+        assertThat(passwords.matches("test-password", account.getPasswordHash())).isTrue();
+        mvc.perform(get("/api/me").session(session)).andExpect(status().isOk())
+            .andExpect(content().json(registered.getResponse().getContentAsString()));
+        mvc.perform(get("/api/projects").session(session)).andExpect(content().json("[]"));
+        mvc.perform(get("/api/projects/{id}", projectId).session(session)).andExpect(status().isNotFound());
+        mvc.perform(post("/api/projects").session(session).header("X-CSRF-TOKEN", token)
+                .contentType(MediaType.APPLICATION_JSON).content("{}"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test void concurrentRegistrationOfSameEmailCreatesOnlyOneAccount() throws Exception {
+        try (var pool = Executors.newVirtualThreadPerTaskExecutor()) {
+            var start = new CountDownLatch(1);
+            List<Future<MvcResult>> submissions = new ArrayList<>();
+            for (String email : List.of("new@example.test", "NEW@example.test")) {
+                submissions.add(pool.submit(() -> {
+                    start.await();
+                    return mvc.perform(post("/api/auth/register").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("email", email, "password", "test-password")))).andReturn();
+                }));
+            }
+            start.countDown();
+            var first = submissions.get(0).get(10, TimeUnit.SECONDS);
+            var second = submissions.get(1).get(10, TimeUnit.SECONDS);
+            assertThat(List.of(first.getResponse().getStatus(), second.getResponse().getStatus()))
+                .containsExactlyInAnyOrder(201, 409);
+            var conflict = first.getResponse().getStatus() == 409 ? first : second;
+            assertThat(body(conflict).get("detail").asText()).isEqualTo("该邮箱已注册，请直接登录");
+        }
+        assertThat(users.count()).isEqualTo(3);
+        mvc.perform(post("/api/auth/register").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("email", "long@example.test", "password", "密".repeat(25)))))
+            .andExpect(status().isBadRequest());
+        assertThat(users.findByEmail("long@example.test")).isEmpty();
     }
 
     @Test void allResourceLevelsHideOtherUsersData() throws Exception {
@@ -258,6 +308,7 @@ class BackendIntegrationTest extends PostgresSupport {
             .andExpect(jsonPath("$.components.schemas.Episode.properties.story").exists())
             .andExpect(jsonPath("$.components.schemas.Task.properties.ready").exists())
             .andExpect(jsonPath("$.paths['/api/auth/login'].post.parameters[0].name").value("X-CSRF-TOKEN"))
+            .andExpect(jsonPath("$.paths['/api/auth/register'].post.parameters[0].name").value("X-CSRF-TOKEN"))
             .andExpect(jsonPath("$.paths['/api/auth/csrf'].get.parameters").doesNotExist());
     }
 

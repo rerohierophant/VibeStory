@@ -1,5 +1,7 @@
 import { useId } from 'react';
 
+export const brandMarkPath = 'M23 29 H38 L48 73 L58 29 H73';
+
 /**
  * VibeStory 品牌标记。
  *
@@ -44,7 +46,7 @@ export function LogoMark({
       <rect width="96" height="96" rx="24" fill={`url(#${gradId})`} />
       <rect width="96" height="96" rx="24" fill={`url(#${sheenId})`} />
       <path
-        d="M23 29 H38 L48 73 L58 29 H73"
+        d={brandMarkPath}
         fill="none"
         stroke="#ffffff"
         strokeWidth={7.5}

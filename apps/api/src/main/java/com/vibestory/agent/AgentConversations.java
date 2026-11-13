@@ -14,6 +14,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.jooq.DSLContext;
 import org.jooq.Record;
@@ -25,10 +27,12 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class AgentConversations {
     public record Conversation(UUID id, String title, OffsetDateTime updatedAt) {}
+    public record ConversationHistoryItem(UUID id, String title, OffsetDateTime updatedAt,
+                                          String projectId, String episodeId, Integer episodeIndex) {}
     public record Attachment(String id, String name, String url) {}
     public record ChatMessage(String id, String instruction, String projectId, String episodeId, List<Attachment> images, AgentResult result,
                               State proposalState, String imageTaskId, AgentWorkflows.Workflow workflow,
-                              String suggestedInstruction, String error, boolean variantAdopted, AgentRuntime.Execution execution) {}
+                              String suggestedInstruction, String error, AgentRuntime.Execution execution) {}
     public record Transcript(Conversation conversation, List<ChatMessage> messages) {}
     public record Image(String mediaType, byte[] bytes) {}
     private record Upload(String name, ReferenceImage.Encoded image) {}
@@ -56,9 +60,24 @@ public class AgentConversations {
     }
 
     @Transactional(readOnly = true)
-    public List<Conversation> history(long user) {
-        return db.fetch("select * from agent_conversation where user_id = ? order by updated_at desc, id", user)
-            .map(this::conversation);
+    public List<ConversationHistoryItem> history(long user) {
+        // The title comes from the first message, except for the main session created for an episode.
+        return db.fetch("""
+            select c.id, case when c.creative_episode_id is not null then '主会话' else c.title end as title,
+                c.updated_at, p.id as project_id, e.id as episode_id, e.episode_index
+            from agent_conversation c
+            left join lateral (
+                select project_id, episode_id from agent_chat_message where conversation_id = c.id order by id limit 1
+            ) first_message on c.creative_episode_id is null
+            left join episode e on e.id = coalesce(c.creative_episode_id, first_message.episode_id)
+                and e.user_id = c.user_id
+                and (first_message.project_id is null or e.project_id = first_message.project_id)
+            left join project p on p.id = coalesce(e.project_id, first_message.project_id)
+                and p.user_id = c.user_id and p.team_id is null
+            where c.user_id = ? order by c.updated_at desc, c.id
+            """, user).map(row -> new ConversationHistoryItem(row.get("id", UUID.class), row.get("title", String.class),
+                row.get("updated_at", OffsetDateTime.class), row.get("project_id", String.class), row.get("episode_id", String.class),
+                row.get("episode_index", Integer.class)));
     }
 
     @Transactional(readOnly = true)
@@ -80,12 +99,16 @@ public class AgentConversations {
 
     @Transactional
     public Transcript confirmWorkflow(long user, UUID conversationId, UUID workflowId) {
-        require(user, conversationId, true);
-        workflows.confirm(user, conversationId, workflowId, true);
+        require(user, conversationId, false);
+        workflows.confirm(user, conversationId, workflowId);
         return transcript(require(user, conversationId, false));
     }
 
     public Transcript send(long user, UUID id, ChatInput input) {
+        return send(user, id, input, null, null);
+    }
+
+    Transcript send(long user, UUID id, ChatInput input, BiConsumer<UUID, Transcript> started, Consumer<String> delta) {
         creative.requireConversationScope(id, input.episodeId());
         if (input.projectId() != null) scope.personalProject(user, input.projectId());
         if (input.episodeId() != null) scope.personalEpisode(user, input.episodeId());
@@ -116,7 +139,8 @@ public class AgentConversations {
         UUID execution = null;
         if (uploads.isEmpty()) {
             execution = runtime.startMain(user, id, new ChatInput(input.requestKey(), instruction, input.projectId(), input.episodeId(), List.of()));
-            runtime.drive(execution);
+            UUID run = execution;
+            runtime.driveWithReply(run, started == null ? null : () -> started.accept(run, transcript(user, id)), delta);
         }
         UUID run = execution;
         return transactions.execute(status -> save(user, id, input, instruction, uploads, null, null, run));
@@ -124,6 +148,14 @@ public class AgentConversations {
 
     private Transcript save(long user, UUID id, ChatInput input, String instruction, List<Upload> uploads,
                             String suggestion, String rejection, UUID execution) {
+        if (input.episodeId() != null) {
+            long project = scope.lockEpisode(user, input.episodeId());
+            scope.personalEpisode(user, input.episodeId());
+            if (input.projectId() != null && input.projectId() != project) throw ApiException.notFound();
+        } else if (input.projectId() != null) {
+            scope.lockProject(user, input.projectId());
+            scope.personalProject(user, input.projectId());
+        }
         String title = instruction.isEmpty() ? "图片会话" : shorten(instruction.lines().findFirst().orElse(instruction), 28);
         db.execute("""
             insert into agent_conversation(id, user_id, title) values (?, ?, ?)
@@ -193,14 +225,11 @@ public class AgentConversations {
             where m.conversation_id = ? order by i.id
             """, conversation.id()).stream().collect(Collectors.groupingBy(image -> image.get("message_id", Long.class)));
         var messages = db.fetch("""
-            select m.*, p.state as proposal_state, p.image_task_id, a.request_key is not null as variant_adopted
+            select m.*, p.state as proposal_state, p.image_task_id
             from agent_chat_message m
             left join shot_edit_proposal p on p.id = (m.result #>> '{proposal,id}')::bigint and p.episode_id = m.episode_id
-            left join storyboard_variant_adoption a on a.episode_id=m.episode_id and a.actor_id=?
-                and a.request_key=(m.result #>> '{variantChoice,requestKey}')::uuid
-                and a.revision_id=(m.result #>> '{variantChoice,revisionId}')::bigint
             where m.conversation_id = ? order by m.id
-            """, row.get("user_id", Long.class), conversation.id()).map(message -> {
+            """, conversation.id()).map(message -> {
                 long id = message.get("id", Long.class);
                 var images = attachments.getOrDefault(id, List.of()).stream().map(image -> {
                     String imageId = image.get("id", String.class);
@@ -215,7 +244,7 @@ public class AgentConversations {
                     state == null ? null : State.valueOf(state), message.get("image_task_id", String.class),
                     runs.get(message.get("request_key", UUID.class)), message.get("suggested_instruction", String.class),
                     execution != null && execution.error() != null ? execution.error() : message.get("error", String.class),
-                    message.get("variant_adopted", Boolean.class), execution);
+                    execution);
             });
         return new Transcript(conversation, messages);
     }

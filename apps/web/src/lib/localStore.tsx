@@ -7,11 +7,13 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { buildDemoShots, defaultSettings, demoCharacters, demoScenes } from './mock';
+import { buildDemoShots, defaultSettings, demoCharacters } from './mock';
 import { loadState, saveState } from './storage';
 import { uid } from './id';
 import { splitIntoShots } from './splitter';
 import { captureImageInputSnapshot } from './imageSource';
+import { demoProjectStyleEditable } from './projectStyle';
+import { resolveStyle } from './visualPresets';
 import type {
   Character,
   Episode,
@@ -23,7 +25,7 @@ import type {
   State,
 } from './types';
 
-import { StoreContext, type StoreValue, type NewProjectInput } from './storeContext';
+import { StoreContext, type StoreValue, type NewProjectInput, type ProjectStyleInput, type VideoRegeneration } from './storeContext';
 
 function nowIso(): number {
   return Date.now();
@@ -50,7 +52,19 @@ function mapEpisode(
 }
 
 export function LocalStoreProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<State>(loadState);
+  const [state, setState] = useState<State>(() => {
+    const saved = loadState();
+    const restoreAsset = (asset: Character | SceneAsset): Character | SceneAsset =>
+      asset.generationState === 'queued' || asset.generationState === 'running'
+        ? { ...asset, generationState: 'idle' } : asset;
+    return {
+      ...saved,
+      shots: saved.shots.map(shot => shot.images.some(image => image.id === shot.selectedImageId)
+        ? shot : { ...shot, status: 'draft' }),
+      characters: saved.characters.map(restoreAsset),
+      scenes: saved.scenes.map(restoreAsset),
+    };
+  });
   const timers = useRef<number[]>([]);
 
   useEffect(() => {
@@ -105,14 +119,20 @@ export function LocalStoreProvider({ children }: { children: ReactNode }) {
     return id;
   }, []);
 
-  const updateProject = useCallback(
-    (id: string, patch: Partial<Pick<Project, 'name' | 'style' | 'visualType'>>) => {
+  const updateProjectStyle = useCallback(
+    async (id: string, input: ProjectStyleInput) => {
+      if (!demoProjectStyleEditable(id, state))
+        throw new Error('项目已有生成图，或有正在处理的图片任务，暂时无法切换风格');
       setState((s) => ({
         ...s,
-        projects: s.projects.map((p) => (p.id === id ? { ...p, ...patch, updatedAt: nowIso() } : p)),
+        projects: s.projects.map(p => p.id === id ? {
+          ...p, ...input,
+          visualPreset: input.visualType === p.visualType ? p.visualPreset : resolveStyle(input.visualType, s.customStyles),
+          updatedAt: nowIso(),
+        } : p),
       }));
     },
-    [],
+    [state],
   );
 
   const renameProject = useCallback((id: string, name: string) => {
@@ -164,6 +184,16 @@ export function LocalStoreProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const deleteEpisode = useCallback((episodeId: string) => {
+    setState((s) => ({
+      ...s,
+      projects: s.projects.map((p) => p.episodes.some((e) => e.id === episodeId)
+        ? { ...p, episodes: p.episodes.filter((e) => e.id !== episodeId), updatedAt: nowIso() }
+        : p),
+      shots: s.shots.filter((shot) => shot.episodeId !== episodeId),
+    }));
+  }, []);
+
   const setEpisodeStory = useCallback((episodeId: string, text: string) => {
     setState((s) => ({
       ...s,
@@ -177,7 +207,7 @@ export function LocalStoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const runBreakdown = useCallback(
-    (episodeId: string) => {
+    (episodeId: string, replaceExisting: boolean) => {
       setState((s) => {
         const ep = findEpisode(s.projects, episodeId);
         if (!ep || ep.breakdown === 'running') return s;
@@ -187,7 +217,10 @@ export function LocalStoreProvider({ children }: { children: ReactNode }) {
       later(() => {
         setState((s) => {
           const ep = findEpisode(s.projects, episodeId);
-          if (!ep) return s;
+          if (!ep || ep.breakdown !== 'running') return s;
+          if (!replaceExisting && s.shots.some((shot) => shot.episodeId === episodeId)) {
+            return { ...s, projects: mapEpisode(s.projects, episodeId, (e) => ({ ...e, breakdown: 'done' })) };
+          }
           const project = s.projects.find((p) => p.episodes.some((e) => e.id === episodeId));
           if (!project) return s;
 
@@ -197,6 +230,9 @@ export function LocalStoreProvider({ children }: { children: ReactNode }) {
             ep.story,
             projectScenes.length > 0 ? projectScenes.map((c) => ({ name: c.name })) : undefined,
           );
+          const newScenes: SceneAsset[] = [...new Set(drafts.map(draft => draft.sceneName))]
+            .filter(name => !projectScenes.some(scene => scene.name === name))
+            .map(name => ({ id: uid('s'), projectId: project.id, name, description: '', versions: [] }));
 
           const generated: Shot[] = drafts.map((d, index) => ({
             ...d,
@@ -219,14 +255,11 @@ export function LocalStoreProvider({ children }: { children: ReactNode }) {
               ? s.characters
               : [
                   ...s.characters,
-                  ...demoCharacters.slice(0, 2).map((c) => ({ ...c, id: uid('c'), projectId: project.id })),
+                  ...demoCharacters.slice(0, 2).map(({ name, description }) => ({
+                    id: uid('c'), projectId: project.id, name, description, versions: [],
+                  })),
                 ],
-            scenes: s.scenes.some((c) => c.projectId === project.id)
-              ? s.scenes
-              : [
-                  ...s.scenes,
-                  ...demoScenes.slice(0, 2).map((c) => ({ ...c, id: uid('s'), projectId: project.id })),
-                ],
+            scenes: [...s.scenes, ...newScenes],
           };
         });
       }, 1500);
@@ -241,10 +274,11 @@ export function LocalStoreProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const confirmShot = useCallback((id: string) => {
+  const confirmShot = useCallback((id: string, imageId: string) => {
     setState((s) => ({
       ...s,
-      shots: s.shots.map((x) => (x.id === id ? { ...x, status: 'confirmed' } : x)),
+      shots: s.shots.map((x) => (x.id === id && x.images.some(image => image.id === imageId)
+        ? { ...x, status: 'confirmed', selectedImageId: imageId } : x)),
     }));
   }, []);
 
@@ -255,10 +289,27 @@ export function LocalStoreProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const confirmAll = useCallback((episodeId: string) => {
+  const deleteShotImage = useCallback((shotId: string, imageId: string) => {
+    setState(s => ({
+      ...s,
+      shots: s.shots.map(shot => {
+        if (shot.id !== shotId) return shot;
+        const image = shot.images.find(candidate => candidate.id === imageId);
+        if (!image) return shot;
+        const images = shot.images.filter(candidate => candidate.id !== imageId);
+        const updated = { ...shot, images, deletedImages: [...(shot.deletedImages ?? []), image] };
+        return shot.selectedImageId === imageId
+          ? { ...updated, selectedImageId: images.at(-1)?.id, status: 'draft' }
+          : updated;
+      }),
+    }));
+  }, []);
+
+  const confirmAll = useCallback((episodeId: string, frames: Record<string, string>) => {
     setState((s) => ({
       ...s,
-      shots: s.shots.map((x) => (x.episodeId === episodeId ? { ...x, status: 'confirmed' } : x)),
+      shots: s.shots.map((x) => (x.episodeId === episodeId && x.selectedImageId && frames[x.id] === x.selectedImageId
+        ? { ...x, status: 'confirmed' } : x)),
     }));
   }, []);
 
@@ -266,7 +317,7 @@ export function LocalStoreProvider({ children }: { children: ReactNode }) {
     (id: string) => {
       const shot = state.shots.find((x) => x.id === id);
       if (
-        !shot || shot.status !== 'confirmed' ||
+        !shot ||
         shot.imageState === 'queued' || shot.imageState === 'running'
       ) return;
       const inputSnapshot = captureImageInputSnapshot(shot, state.characters, state.scenes);
@@ -288,10 +339,11 @@ export function LocalStoreProvider({ children }: { children: ReactNode }) {
           ...s,
           shots: s.shots.map((x) => {
             if (x.id !== id) return x;
+            const version = x.images.length + (x.deletedImages?.length ?? 0) + 1;
             const candidate: ShotImage = {
               id: uid('img'),
-              label: `候选 ${x.images.length + 1}`,
-              seed: `${shot.sceneName}-${shot.seq}-${x.images.length + 1}`,
+              label: `候选 ${version}`,
+              seed: `${shot.sceneName}-${shot.seq}-${version}`,
               createdAt: nowIso(),
               inputSnapshot,
             };
@@ -309,21 +361,16 @@ export function LocalStoreProvider({ children }: { children: ReactNode }) {
     [later, state.shots, state.characters, state.scenes],
   );
 
-  const selectImage = useCallback((shotId: string, imageId: string) => {
-    setState((s) => ({
-      ...s,
-      shots: s.shots.map((x) => (x.id === shotId ? { ...x, selectedImageId: imageId } : x)),
-    }));
-  }, []);
-
   const generateVideo = useCallback(
-    (id: string) => {
+    (id: string, regeneration?: VideoRegeneration) => {
       const shot = state.shots.find((x) => x.id === id);
       if (
         !shot || shot.status !== 'confirmed' || !shot.selectedImageId ||
         shot.video.state === 'queued' || shot.video.state === 'running'
       ) return;
       const sourceImageId = shot.selectedImageId;
+      if (regeneration && regeneration.expectedFirstFrameId !== sourceImageId)
+        throw new Error('当前选中的首帧已变化，请重新打开生成窗口');
 
       setState((s) => ({
         ...s,
@@ -332,7 +379,7 @@ export function LocalStoreProvider({ children }: { children: ReactNode }) {
           if (!x.selectedImageId) return x;
           return {
             ...x,
-            video: { ...x.video, state: 'queued', error: undefined, attempts: x.video.attempts + 1 },
+            video: { ...x.video, state: 'queued', error: undefined, pendingBasedOn: sourceImageId, attempts: x.video.attempts + 1 },
           };
         }),
       }));
@@ -350,21 +397,34 @@ export function LocalStoreProvider({ children }: { children: ReactNode }) {
           shots: s.shots.map((x) => {
             if (x.id !== id) return x;
             const fail = Math.random() < 0.18;
+            if (fail) return {
+              ...x,
+              video: {
+                ...x.video,
+                state: 'failed',
+                error: '供应商超时（60s），本次结果未知，请确认后再重试',
+              },
+            };
+            const { ready, basedOn, url, durationMs, prompt } = x.video;
+            const previous = x.video.candidates ?? (ready ? [{ id: uid('video'), basedOn, url, durationMs, prompt }] : []);
+            const candidate = {
+              id: uid('video'),
+              basedOn: sourceImageId,
+              prompt: regeneration?.prompt ?? shot.description,
+              createdAt: nowIso(),
+            };
             return {
               ...x,
-              video: fail
-                ? {
-                    ...x.video,
-                    state: 'failed',
-                    error: '供应商超时（60s），本次结果未知，请确认后再重试',
-                  }
-                : {
-                    ...x.video,
-                    state: 'idle',
-                    ready: true,
-                    basedOn: sourceImageId,
-                    error: undefined,
-                  },
+              video: {
+                ...x.video,
+                state: 'idle',
+                ready: true,
+                basedOn: candidate.basedOn,
+                prompt: candidate.prompt,
+                pendingBasedOn: undefined,
+                error: undefined,
+                candidates: [candidate, ...previous],
+              },
             };
           }),
         }));
@@ -375,27 +435,41 @@ export function LocalStoreProvider({ children }: { children: ReactNode }) {
 
   const addAssetVersion = useCallback(
     (kind: 'character' | 'scene', ownerId: string, source: 'uploaded' | 'generated') => {
-      setState((s) => {
-        const patch = <T extends Character | SceneAsset>(owner: T): T => {
-          const version = {
-            id: uid('v'),
-            label: `v${owner.versions.length + 1}`,
-            seed: `${owner.name}-${owner.versions.length + 1}`,
-            createdAt: nowIso(),
-            source,
-          };
-          return {
-            ...owner,
-            versions: [...owner.versions, version],
-            selectedVersionId: version.id,
-          };
+      function update(patch: (owner: Character | SceneAsset) => Character | SceneAsset) {
+        setState(s => kind === 'character'
+          ? { ...s, characters: s.characters.map(c => c.id === ownerId ? patch(c) : c) }
+          : { ...s, scenes: s.scenes.map(c => c.id === ownerId ? patch(c) : c) });
+      }
+      function appendVersion(owner: Character | SceneAsset) {
+        const version = {
+          id: uid('v'),
+          label: `v${owner.versions.length + 1}`,
+          seed: `${owner.name}-${owner.versions.length + 1}`,
+          createdAt: nowIso(),
+          source,
         };
-        return kind === 'character'
-          ? { ...s, characters: s.characters.map((c) => (c.id === ownerId ? patch(c) : c)) }
-          : { ...s, scenes: s.scenes.map((c) => (c.id === ownerId ? patch(c) : c)) };
-      });
+        return { ...owner, versions: [...owner.versions, version], selectedVersionId: version.id };
+      }
+
+      const owner = (kind === 'character' ? state.characters : state.scenes).find(asset => asset.id === ownerId);
+      if (!owner) return;
+      if (source === 'uploaded') {
+        update(appendVersion);
+        return;
+      }
+      if (owner.generationState === 'queued' || owner.generationState === 'running') return;
+      if (owner.versions.length) {
+        update(appendVersion);
+        return;
+      }
+      update(asset => ({ ...asset, generationState: 'queued' }));
+      later(() => update(asset => ({ ...asset, generationState: 'running' })), 500);
+      later(() => update(asset => {
+        const result = appendVersion(asset);
+        return { ...result, selectedVersionId: asset.selectedVersionId ?? result.selectedVersionId, generationState: 'idle' };
+      }), 2200);
     },
-    [],
+    [later, state.characters, state.scenes],
   );
 
   const selectAssetVersion = useCallback(
@@ -465,19 +539,20 @@ export function LocalStoreProvider({ children }: { children: ReactNode }) {
       login,
       logout,
       createProject,
-      updateProject,
+      updateProjectStyle,
       renameProject,
       deleteProject,
       createEpisode,
       updateEpisode,
+      deleteEpisode,
       setEpisodeStory,
       runBreakdown,
       updateShot,
       confirmShot,
       confirmAll,
       unconfirmShot,
+      deleteShotImage,
       generateImage,
-      selectImage,
       generateVideo,
       addAssetVersion,
       selectAssetVersion,
@@ -491,19 +566,20 @@ export function LocalStoreProvider({ children }: { children: ReactNode }) {
       login,
       logout,
       createProject,
-      updateProject,
+      updateProjectStyle,
       renameProject,
       deleteProject,
       createEpisode,
       updateEpisode,
+      deleteEpisode,
       setEpisodeStory,
       runBreakdown,
       updateShot,
       confirmShot,
       confirmAll,
       unconfirmShot,
+      deleteShotImage,
       generateImage,
-      selectImage,
       generateVideo,
       addAssetVersion,
       selectAssetVersion,

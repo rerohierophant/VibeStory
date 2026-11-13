@@ -1,4 +1,5 @@
 import type { ShotStatus, TaskState } from '@/lib/types';
+import { GenerationMark } from './GenerationLoading';
 
 type Tone = 'neutral' | 'accent' | 'success' | 'warning' | 'error' | 'muted';
 
@@ -53,7 +54,8 @@ const taskLabels: Record<TaskState, { text: string; tone: Tone }> = {
 export function TaskBadge({ state }: { state: TaskState }) {
   const { text, tone } = taskLabels[state];
   return (
-    <Badge tone={tone} dot={state === 'running'}>
+    <Badge tone={tone}>
+      {(state === 'queued' || state === 'running') && <GenerationMark state={state} />}
       {text}
     </Badge>
   );

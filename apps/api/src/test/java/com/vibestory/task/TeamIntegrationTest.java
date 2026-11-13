@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,12 +35,31 @@ class TeamIntegrationTest extends PostgresSupport {
     String team;
 
     @BeforeEach void setup() throws Exception {
-        db.execute("truncate app_user,team,storage_cleanup restart identity cascade");
+        resetDatabase(db);
         owner = account("owner");
         member = account("member");
         viewer = account("viewer");
         outsider = account("outsider");
         team = read(post("/api/teams"), owner, "{\"name\":\"短剧团队\"}", 201).path("id").asText();
+    }
+
+    @Test void registrationDoesNotGrantAccessToLegacyInvitations() throws Exception {
+        String email = "unregistered@team.test";
+        String invitation = "{\"email\":\"" + email + "\",\"role\":\"MEMBER\"}";
+        read(post("/api/teams/{team}/invitations", team), owner, invitation, 400);
+        long oldId = db.fetchOne("""
+            insert into team_invitation(team_id,email,role,inviter_id) values (?,?,'MEMBER',?) returning id
+            """, Long.parseLong(team), email, owner.id()).get(0, Long.class);
+
+        var result = mvc.perform(post("/api/auth/register").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + email + "\",\"password\":\"test-password\"}"))
+            .andExpect(status().isCreated()).andReturn();
+        var session = (MockHttpSession) result.getRequest().getSession();
+        mvc.perform(get("/api/me/team-invitations").session(session)).andExpect(content().json("[]"));
+        mvc.perform(post("/api/me/team-invitations/{id}/accept", oldId).session(session).with(csrf()))
+            .andExpect(status().isConflict());
+        read(post("/api/teams/{team}/invitations", team), owner, invitation, 201);
+        mvc.perform(get("/api/me/team-invitations").session(session)).andExpect(jsonPath("$.length()").value(1));
     }
 
     @Test void invitationsAreBoundToTheAccountAndAcceptOnlyOnce() throws Exception {
@@ -119,6 +140,9 @@ class TeamIntegrationTest extends PostgresSupport {
         assertThat(finished.await(10, TimeUnit.SECONDS)).isTrue();
         assertThat(read(get("/api/tasks/{task}", taskId), owner, null, 200).path("ready").asBoolean()).isTrue();
         String image = read(get("/api/shots/{shot}", shot), viewer, null, 200).path("images").path(0).path("url").asText();
+        mvc.perform(get("/api/teams/{team}/projects", team).with(user(viewer)))
+            .andExpect(status().isOk()).andExpect(jsonPath("$[0].coverImageUrl").value(image));
+        mvc.perform(get("/api/teams/{team}/projects", team).with(user(member))).andExpect(status().isNotFound());
         mvc.perform(get(image).with(user(viewer))).andExpect(status().isOk()).andExpect(header().string("Cache-Control", "private, no-store"));
         for (String path : new String[]{"/api/projects/" + project, "/api/shots/" + shot, "/api/tasks/" + taskId, image})
             mvc.perform(get(path).with(user(member))).andExpect(status().isNotFound());

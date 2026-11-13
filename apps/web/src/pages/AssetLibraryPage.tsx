@@ -69,8 +69,8 @@ export function AssetLibraryPage({ kind }: { kind: AssetKind }) {
   const visible = list.filter((a) => !filter.trim() || a.name.includes(filter.trim()));
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <header className="border-b border-stroke/15 px-8 py-6">
+    <div className="@container/asset-library flex min-h-0 flex-1 flex-col">
+      <header className="border-b border-stroke/15 px-4 py-6 @min-[48rem]/asset-library:px-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
@@ -96,7 +96,7 @@ export function AssetLibraryPage({ kind }: { kind: AssetKind }) {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto scroll-thin p-8">
+      <div className="flex-1 overflow-y-auto scroll-thin p-4 @min-[48rem]/asset-library:p-8">
         {list.length === 0 ? (
           <EmptyState
             title={text.emptyTitle}
@@ -110,12 +110,16 @@ export function AssetLibraryPage({ kind }: { kind: AssetKind }) {
         ) : visible.length === 0 ? (
           <EmptyState title="没有匹配的资产" description="换个关键词试试。" />
         ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,28rem),1fr))] gap-4">
+          <div className={`grid grid-cols-1 gap-3 @min-[48rem]/asset-library:gap-4 ${
+            kind === 'character'
+              ? '@min-[29rem]/asset-library:grid-cols-2 @min-[44rem]/asset-library:grid-cols-3'
+              : '@min-[24rem]/asset-library:grid-cols-2 @min-[36rem]/asset-library:grid-cols-3'
+          }`}>
             {visible.map((a) => {
               const use = usage.get(a.name);
               return (
                 <AssetRow
-                  key={a.id}
+                  key={`${kind}:${a.id}`}
                   kind={kind}
                   asset={a}
                   usedIn={use?.shots ?? 0}

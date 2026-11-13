@@ -100,6 +100,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/agent/conversations/{id}/messages/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["stream"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/agent/conversations/{id}/workflows/{workflowId}/confirm": {
         parameters: {
             query?: never;
@@ -308,6 +324,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/dispatch-metrics": {
         parameters: {
             query?: never;
@@ -349,7 +381,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["submit_4"];
+        post: operations["submit_3"];
         delete?: never;
         options?: never;
         head?: never;
@@ -491,9 +523,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_6"];
+        get: operations["list_5"];
         put?: never;
-        post: operations["submit_3"];
+        post: operations["submit_2"];
         delete?: never;
         options?: never;
         head?: never;
@@ -587,7 +619,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_8"];
+        get: operations["list_7"];
         put?: never;
         post?: never;
         delete?: never;
@@ -622,54 +654,6 @@ export interface paths {
         get?: never;
         put: operations["story"];
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/episodes/{episodeId}/storyboard-variants": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["list_5"];
-        put?: never;
-        post: operations["submit_2"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/episodes/{episodeId}/storyboard-variants/revisions/{revisionId}/adopt": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["adopt"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/episodes/{episodeId}/storyboard-variants/{variantId}/archive": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["archive"];
         delete?: never;
         options?: never;
         head?: never;
@@ -718,6 +702,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["create_5"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/image-experience/creations/with-reference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createWithReference"];
         delete?: never;
         options?: never;
         head?: never;
@@ -779,7 +779,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["recipes"];
         put?: never;
         post: operations["recipe"];
         delete?: never;
@@ -1108,6 +1108,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/shots/{shotId}/images/{imageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteCandidate"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/shots/{shotId}/selected-image": {
         parameters: {
             query?: never;
@@ -1163,7 +1179,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_7"];
+        get: operations["list_6"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1474,11 +1490,12 @@ export interface components {
             episodeId?: string;
             message?: string;
             projectId?: string;
+            /** Format: uuid */
+            projectPlanId?: string;
             proposal?: components["schemas"]["Proposal"];
             /** @enum {string} */
             skill?: "WORKSPACE" | "STORY" | "SHOT" | "ASSET" | "GENERATE" | "PROGRESS";
             taskId?: string;
-            variantChoice?: components["schemas"]["VariantChoice"];
         };
         AssetCard: {
             description?: string;
@@ -1492,11 +1509,9 @@ export interface components {
             usage?: components["schemas"]["Usage"];
             versions?: components["schemas"]["AssetVersion"][];
         };
-        AssetSnapshot: {
-            assetId?: string;
+        AssetDraft: {
+            description?: string;
             name?: string;
-            versionId?: string;
-            versionLabel?: string;
         };
         AssetVersion: {
             /** Format: int64 */
@@ -1556,7 +1571,6 @@ export interface components {
             proposalState?: "PENDING" | "APPLIED" | "DISCARDED";
             result?: components["schemas"]["AgentResult"];
             suggestedInstruction?: string;
-            variantAdopted?: boolean;
             workflow?: components["schemas"]["Workflow"];
         };
         ContextStatus: {
@@ -1576,6 +1590,17 @@ export interface components {
         Conversation: {
             /** Format: uuid */
             id?: string;
+            title?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        ConversationHistoryItem: {
+            episodeId?: string;
+            /** Format: int32 */
+            episodeIndex?: number;
+            /** Format: uuid */
+            id?: string;
+            projectId?: string;
             title?: string;
             /** Format: date-time */
             updatedAt?: string;
@@ -1609,12 +1634,15 @@ export interface components {
             storyboardSessionId?: string;
         };
         CreativePlanPreview: {
+            characters?: components["schemas"]["AssetDraft"][];
             episodes?: components["schemas"]["EpisodePreview"][];
             /** Format: uuid */
             id?: string;
+            scenes?: components["schemas"]["AssetDraft"][];
         };
         CreativeProject: {
             plan?: components["schemas"]["CreativeTurn"];
+            planPreviewText?: string;
             source?: components["schemas"]["CreativeSource"];
         };
         CreativeRequest: {
@@ -1628,6 +1656,9 @@ export interface components {
             /** Format: int32 */
             characters?: number;
             id?: string;
+            ideaText?: string;
+            /** @enum {string} */
+            kind?: "MANUSCRIPT" | "IDEA";
             name?: string;
         };
         CreativeStoryboard: {
@@ -1706,6 +1737,7 @@ export interface components {
             opening?: string;
             /** Format: int32 */
             start?: number;
+            story?: string;
             summary?: string;
             title?: string;
         };
@@ -1722,6 +1754,11 @@ export interface components {
             /** Format: int32 */
             toolCount?: number;
             trace?: components["schemas"]["ToolTrace"][];
+        };
+        FrameReview: {
+            frames?: {
+                [key: string]: string;
+            };
         };
         GenerateAsset: {
             regenerateNonce?: string;
@@ -1825,6 +1862,7 @@ export interface components {
             name?: string;
             preferences?: components["schemas"]["ImagePreference"][];
             recipes?: components["schemas"]["ImageRecipe"][];
+            referenceUploadSupported?: boolean;
             targetId?: string;
             /** @enum {string} */
             targetType?: "SHOT" | "CHARACTER" | "SCENE";
@@ -2022,6 +2060,7 @@ export interface components {
             unknown?: number;
         };
         Project: {
+            coverImageUrl?: string;
             /** Format: int64 */
             createdAt?: number;
             episodes?: components["schemas"]["Episode"][];
@@ -2029,6 +2068,8 @@ export interface components {
             name?: string;
             stats?: components["schemas"]["Overview"];
             style?: string;
+            styleEditable?: boolean;
+            synopsis?: string;
             teamId?: string;
             /** Format: int64 */
             updatedAt?: number;
@@ -2060,6 +2101,15 @@ export interface components {
             /** Format: int32 */
             version?: number;
             versionId?: string;
+        };
+        ReplyEvent: {
+            /** Format: uuid */
+            executionId?: string;
+            /** Format: int32 */
+            status?: number;
+            text?: string;
+            transcript?: components["schemas"]["Transcript"];
+            type?: string;
         };
         Retry: {
             acknowledgeUnknown?: boolean;
@@ -2140,11 +2190,9 @@ export interface components {
             roles?: string[];
             version?: string;
         };
-        Sources: {
-            characters?: components["schemas"]["AssetSnapshot"][];
-            scene?: components["schemas"]["AssetSnapshot"];
-        };
         Status: {
+            /** Format: int64 */
+            imageId?: number;
             status: string;
         };
         Story: {
@@ -2168,65 +2216,6 @@ export interface components {
             /** Format: int32 */
             unconfirmed?: number;
         };
-        StoryboardVariant: {
-            archived?: boolean;
-            id?: string;
-            members?: components["schemas"]["StoryboardVariantMember"][];
-            name?: string;
-            /** Format: int32 */
-            revision?: number;
-            revisionId?: string;
-        };
-        StoryboardVariantAdopt: {
-            /** Format: uuid */
-            requestKey: string;
-            shots: components["schemas"]["StoryboardVariantTarget"][];
-        };
-        StoryboardVariantEdit: {
-            cameraMove: string;
-            description: string;
-            /** Format: int64 */
-            shotId?: number;
-            shotSize: string;
-        };
-        StoryboardVariantMember: {
-            cameraMove?: string;
-            description?: string;
-            error?: string;
-            imageId?: string;
-            imageUrl?: string;
-            retryable?: boolean;
-            reused?: boolean;
-            /** Format: int32 */
-            seq?: number;
-            shotId?: string;
-            shotSize?: string;
-            sources?: components["schemas"]["Sources"];
-            state?: string;
-            taskId?: string;
-        };
-        StoryboardVariantOverview: {
-            canEdit?: boolean;
-            variants?: components["schemas"]["StoryboardVariant"][];
-        };
-        StoryboardVariantSubmit: {
-            /** Format: int64 */
-            baseRevisionId?: number;
-            name?: string;
-            /** Format: uuid */
-            requestKey: string;
-            shots: components["schemas"]["StoryboardVariantEdit"][];
-        };
-        StoryboardVariantTarget: {
-            /** Format: int64 */
-            imageId?: number;
-            /** Format: int64 */
-            selectedImageId?: number;
-            /** Format: int64 */
-            shotId?: number;
-            /** Format: int64 */
-            shotVersion?: number;
-        };
         StyleUpload: {
             /** Format: binary */
             image: string;
@@ -2236,6 +2225,8 @@ export interface components {
             taskId?: string;
         };
         Submit: {
+            expectedFirstFrameId?: string;
+            prompt?: string;
             regenerateNonce?: string;
         };
         SubmitBreakdown: {
@@ -2317,9 +2308,12 @@ export interface components {
             expectedVersion?: number;
             name?: string;
             style?: string;
+            synopsis?: string;
             visualType?: string;
         };
         UploadSource: {
+            /** @enum {string} */
+            kind?: "MANUSCRIPT" | "IDEA";
             name: string;
             /** Format: uuid */
             requestKey: string;
@@ -2330,31 +2324,32 @@ export interface components {
             /** Format: int32 */
             shots?: number;
         };
-        VariantChoice: {
-            episodeId?: string;
-            imageId?: string;
-            imageUrl?: string;
-            requestKey?: string;
-            revisionId?: string;
-            selectedImageId?: string;
-            shotId?: string;
-            /** Format: int64 */
-            shotVersion?: number;
-        };
         Video: {
             /** Format: int32 */
             attempts?: number;
             basedOn?: string;
+            candidates?: components["schemas"]["VideoCandidate"][];
             /** Format: int32 */
             durationMs?: number;
             error?: string;
             pendingBasedOn?: string;
+            prompt?: string;
             ready?: boolean;
             resumable?: boolean;
             retryable?: boolean;
             /** @enum {string} */
             state?: "idle" | "queued" | "running" | "failed" | "unknown";
             taskId?: string;
+            url?: string;
+        };
+        VideoCandidate: {
+            basedOn?: string;
+            /** Format: int64 */
+            createdAt?: number;
+            /** Format: int32 */
+            durationMs?: number;
+            id?: string;
+            prompt?: string;
             url?: string;
         };
         VideoContext: {
@@ -2477,7 +2472,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["Conversation"][];
+                    "*/*": components["schemas"]["ConversationHistoryItem"][];
                 };
             };
         };
@@ -2551,6 +2546,35 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["Transcript"];
+                };
+            };
+        };
+    };
+    stream: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Fetch /api/auth/csrf with the same session cookie; refresh after login. */
+                "X-CSRF-TOKEN": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": components["schemas"]["ChatInput"];
+            };
+        };
+        responses: {
+            /** @description 逐行输出回复事件 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/x-ndjson": components["schemas"]["ReplyEvent"];
                 };
             };
         };
@@ -2880,6 +2904,33 @@ export interface operations {
             };
         };
     };
+    register: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Fetch /api/auth/csrf with the same session cookie; refresh after login. */
+                "X-CSRF-TOKEN": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Login"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Me"];
+                };
+            };
+        };
+    };
     metrics: {
         parameters: {
             query?: never;
@@ -2974,7 +3025,7 @@ export interface operations {
             };
         };
     };
-    submit_4: {
+    submit_3: {
         parameters: {
             query?: never;
             header: {
@@ -3211,7 +3262,7 @@ export interface operations {
             };
         };
     };
-    list_6: {
+    list_5: {
         parameters: {
             query: {
                 type: "IMAGE" | "VIDEO";
@@ -3235,7 +3286,7 @@ export interface operations {
             };
         };
     };
-    submit_3: {
+    submit_2: {
         parameters: {
             query?: never;
             header: {
@@ -3396,7 +3447,7 @@ export interface operations {
             };
         };
     };
-    list_8: {
+    list_7: {
         parameters: {
             query?: {
                 filter?: string;
@@ -3433,7 +3484,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["FrameReview"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {
@@ -3472,109 +3527,6 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["Episode"];
                 };
-            };
-        };
-    };
-    list_5: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                episodeId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["StoryboardVariantOverview"];
-                };
-            };
-        };
-    };
-    submit_2: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Fetch /api/auth/csrf with the same session cookie; refresh after login. */
-                "X-CSRF-TOKEN": string;
-            };
-            path: {
-                episodeId: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StoryboardVariantSubmit"];
-            };
-        };
-        responses: {
-            /** @description Accepted */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["StoryboardVariant"];
-                };
-            };
-        };
-    };
-    adopt: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Fetch /api/auth/csrf with the same session cookie; refresh after login. */
-                "X-CSRF-TOKEN": string;
-            };
-            path: {
-                episodeId: number;
-                revisionId: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StoryboardVariantAdopt"];
-            };
-        };
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    archive: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Fetch /api/auth/csrf with the same session cookie; refresh after login. */
-                "X-CSRF-TOKEN": string;
-            };
-            path: {
-                episodeId: number;
-                variantId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
@@ -3635,6 +3587,37 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ImageCreationRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ImageCreation"];
+                };
+            };
+        };
+    };
+    createWithReference: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Fetch /api/auth/csrf with the same session cookie; refresh after login. */
+                "X-CSRF-TOKEN": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    reference: string;
+                    request: components["schemas"]["ImageCreationRequest"];
+                };
             };
         };
         responses: {
@@ -3732,6 +3715,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ImagePreference"];
+                };
+            };
+        };
+    };
+    recipes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ImageRecipe"][];
                 };
             };
         };
@@ -4363,6 +4366,30 @@ export interface operations {
             };
         };
     };
+    deleteCandidate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Fetch /api/auth/csrf with the same session cookie; refresh after login. */
+                "X-CSRF-TOKEN": string;
+            };
+            path: {
+                shotId: number;
+                imageId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     select: {
         parameters: {
             query?: never;
@@ -4448,7 +4475,7 @@ export interface operations {
             };
         };
     };
-    list_7: {
+    list_6: {
         parameters: {
             query?: {
                 role?: string;

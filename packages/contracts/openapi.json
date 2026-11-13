@@ -75,6 +75,10 @@
           "projectId": {
             "type": "string"
           },
+          "projectPlanId": {
+            "format": "uuid",
+            "type": "string"
+          },
           "proposal": {
             "$ref": "#/components/schemas/Proposal"
           },
@@ -91,9 +95,6 @@
           },
           "taskId": {
             "type": "string"
-          },
-          "variantChoice": {
-            "$ref": "#/components/schemas/VariantChoice"
           }
         },
         "type": "object"
@@ -136,18 +137,12 @@
         },
         "type": "object"
       },
-      "AssetSnapshot": {
+      "AssetDraft": {
         "properties": {
-          "assetId": {
+          "description": {
             "type": "string"
           },
           "name": {
-            "type": "string"
-          },
-          "versionId": {
-            "type": "string"
-          },
-          "versionLabel": {
             "type": "string"
           }
         },
@@ -329,9 +324,6 @@
           "suggestedInstruction": {
             "type": "string"
           },
-          "variantAdopted": {
-            "type": "boolean"
-          },
           "workflow": {
             "$ref": "#/components/schemas/Workflow"
           }
@@ -371,6 +363,32 @@
         "properties": {
           "id": {
             "format": "uuid",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ConversationHistoryItem": {
+        "properties": {
+          "episodeId": {
+            "type": "string"
+          },
+          "episodeIndex": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "projectId": {
             "type": "string"
           },
           "title": {
@@ -463,6 +481,12 @@
       },
       "CreativePlanPreview": {
         "properties": {
+          "characters": {
+            "items": {
+              "$ref": "#/components/schemas/AssetDraft"
+            },
+            "type": "array"
+          },
           "episodes": {
             "items": {
               "$ref": "#/components/schemas/EpisodePreview"
@@ -472,6 +496,12 @@
           "id": {
             "format": "uuid",
             "type": "string"
+          },
+          "scenes": {
+            "items": {
+              "$ref": "#/components/schemas/AssetDraft"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -480,6 +510,9 @@
         "properties": {
           "plan": {
             "$ref": "#/components/schemas/CreativeTurn"
+          },
+          "planPreviewText": {
+            "type": "string"
           },
           "source": {
             "$ref": "#/components/schemas/CreativeSource"
@@ -515,6 +548,16 @@
             "type": "integer"
           },
           "id": {
+            "type": "string"
+          },
+          "ideaText": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "MANUSCRIPT",
+              "IDEA"
+            ],
             "type": "string"
           },
           "name": {
@@ -739,6 +782,9 @@
             "format": "int32",
             "type": "integer"
           },
+          "story": {
+            "type": "string"
+          },
           "summary": {
             "type": "string"
           },
@@ -782,6 +828,17 @@
               "$ref": "#/components/schemas/ToolTrace"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "FrameReview": {
+        "properties": {
+          "frames": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
           }
         },
         "type": "object"
@@ -978,7 +1035,6 @@
       "ImageCreationRequest": {
         "properties": {
           "instruction": {
-            "minLength": 1,
             "type": "string"
           },
           "parameters": {
@@ -1079,6 +1135,9 @@
               "$ref": "#/components/schemas/ImageRecipe"
             },
             "type": "array"
+          },
+          "referenceUploadSupported": {
+            "type": "boolean"
           },
           "targetId": {
             "type": "string"
@@ -1639,6 +1698,9 @@
       },
       "Project": {
         "properties": {
+          "coverImageUrl": {
+            "type": "string"
+          },
           "createdAt": {
             "format": "int64",
             "type": "integer"
@@ -1659,6 +1721,12 @@
             "$ref": "#/components/schemas/Overview"
           },
           "style": {
+            "type": "string"
+          },
+          "styleEditable": {
+            "type": "boolean"
+          },
+          "synopsis": {
             "type": "string"
           },
           "teamId": {
@@ -1744,6 +1812,28 @@
             "type": "integer"
           },
           "versionId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ReplyEvent": {
+        "properties": {
+          "executionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "text": {
+            "type": "string"
+          },
+          "transcript": {
+            "$ref": "#/components/schemas/Transcript"
+          },
+          "type": {
             "type": "string"
           }
         },
@@ -1992,22 +2082,13 @@
         },
         "type": "object"
       },
-      "Sources": {
-        "properties": {
-          "characters": {
-            "items": {
-              "$ref": "#/components/schemas/AssetSnapshot"
-            },
-            "type": "array"
-          },
-          "scene": {
-            "$ref": "#/components/schemas/AssetSnapshot"
-          }
-        },
-        "type": "object"
-      },
       "Status": {
         "properties": {
+          "imageId": {
+            "exclusiveMinimum": 0,
+            "format": "int64",
+            "type": "integer"
+          },
           "status": {
             "pattern": "draft|confirmed",
             "type": "string"
@@ -2072,185 +2153,6 @@
         },
         "type": "object"
       },
-      "StoryboardVariant": {
-        "properties": {
-          "archived": {
-            "type": "boolean"
-          },
-          "id": {
-            "type": "string"
-          },
-          "members": {
-            "items": {
-              "$ref": "#/components/schemas/StoryboardVariantMember"
-            },
-            "type": "array"
-          },
-          "name": {
-            "type": "string"
-          },
-          "revision": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "revisionId": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "StoryboardVariantAdopt": {
-        "properties": {
-          "requestKey": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "shots": {
-            "items": {
-              "$ref": "#/components/schemas/StoryboardVariantTarget"
-            },
-            "maxItems": 12,
-            "minItems": 0,
-            "type": "array"
-          }
-        },
-        "required": [
-          "requestKey",
-          "shots"
-        ],
-        "type": "object"
-      },
-      "StoryboardVariantEdit": {
-        "properties": {
-          "cameraMove": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "shotId": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "shotSize": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "cameraMove",
-          "description",
-          "shotSize"
-        ],
-        "type": "object"
-      },
-      "StoryboardVariantMember": {
-        "properties": {
-          "cameraMove": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "error": {
-            "type": "string"
-          },
-          "imageId": {
-            "type": "string"
-          },
-          "imageUrl": {
-            "type": "string"
-          },
-          "retryable": {
-            "type": "boolean"
-          },
-          "reused": {
-            "type": "boolean"
-          },
-          "seq": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "shotId": {
-            "type": "string"
-          },
-          "shotSize": {
-            "type": "string"
-          },
-          "sources": {
-            "$ref": "#/components/schemas/Sources"
-          },
-          "state": {
-            "type": "string"
-          },
-          "taskId": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "StoryboardVariantOverview": {
-        "properties": {
-          "canEdit": {
-            "type": "boolean"
-          },
-          "variants": {
-            "items": {
-              "$ref": "#/components/schemas/StoryboardVariant"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "StoryboardVariantSubmit": {
-        "properties": {
-          "baseRevisionId": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "name": {
-            "type": "string"
-          },
-          "requestKey": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "shots": {
-            "items": {
-              "$ref": "#/components/schemas/StoryboardVariantEdit"
-            },
-            "maxItems": 12,
-            "minItems": 0,
-            "type": "array"
-          }
-        },
-        "required": [
-          "requestKey",
-          "shots"
-        ],
-        "type": "object"
-      },
-      "StoryboardVariantTarget": {
-        "properties": {
-          "imageId": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "selectedImageId": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "shotId": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "shotVersion": {
-            "format": "int64",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
       "StyleUpload": {
         "properties": {
           "image": {
@@ -2279,6 +2181,15 @@
       },
       "Submit": {
         "properties": {
+          "expectedFirstFrameId": {
+            "pattern": "[1-9][0-9]{0,18}",
+            "type": "string"
+          },
+          "prompt": {
+            "maxLength": 4000,
+            "minLength": 0,
+            "type": "string"
+          },
           "regenerateNonce": {
             "maxLength": 128,
             "minLength": 0,
@@ -2535,6 +2446,11 @@
             "minLength": 0,
             "type": "string"
           },
+          "synopsis": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          },
           "visualType": {
             "maxLength": 80,
             "minLength": 0,
@@ -2545,6 +2461,13 @@
       },
       "UploadSource": {
         "properties": {
+          "kind": {
+            "enum": [
+              "MANUSCRIPT",
+              "IDEA"
+            ],
+            "type": "string"
+          },
           "name": {
             "maxLength": 120,
             "minLength": 0,
@@ -2583,36 +2506,6 @@
         },
         "type": "object"
       },
-      "VariantChoice": {
-        "properties": {
-          "episodeId": {
-            "type": "string"
-          },
-          "imageId": {
-            "type": "string"
-          },
-          "imageUrl": {
-            "type": "string"
-          },
-          "requestKey": {
-            "type": "string"
-          },
-          "revisionId": {
-            "type": "string"
-          },
-          "selectedImageId": {
-            "type": "string"
-          },
-          "shotId": {
-            "type": "string"
-          },
-          "shotVersion": {
-            "format": "int64",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
       "Video": {
         "properties": {
           "attempts": {
@@ -2622,6 +2515,12 @@
           "basedOn": {
             "type": "string"
           },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/VideoCandidate"
+            },
+            "type": "array"
+          },
           "durationMs": {
             "format": "int32",
             "type": "integer"
@@ -2630,6 +2529,9 @@
             "type": "string"
           },
           "pendingBasedOn": {
+            "type": "string"
+          },
+          "prompt": {
             "type": "string"
           },
           "ready": {
@@ -2652,6 +2554,31 @@
             "type": "string"
           },
           "taskId": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "VideoCandidate": {
+        "properties": {
+          "basedOn": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "durationMs": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "prompt": {
             "type": "string"
           },
           "url": {
@@ -2893,7 +2820,7 @@
               "*/*": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/Conversation"
+                    "$ref": "#/components/schemas/ConversationHistoryItem"
                   },
                   "type": "array"
                 }
@@ -3027,6 +2954,60 @@
               }
             },
             "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "agent-conversation-controller"
+        ]
+      }
+    },
+    "/api/agent/conversations/{id}/messages/stream": {
+      "post": {
+        "operationId": "stream",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/x-ndjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplyEvent"
+                }
+              }
+            },
+            "description": "逐行输出回复事件"
           }
         },
         "security": [
@@ -3651,6 +3632,47 @@
         ]
       }
     },
+    "/api/auth/register": {
+      "post": {
+        "operationId": "register",
+        "parameters": [
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Login"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "auth-controller"
+        ]
+      }
+    },
     "/api/dispatch-metrics": {
       "get": {
         "operationId": "metrics",
@@ -3803,7 +3825,7 @@
     },
     "/api/episodes/{episodeId}/breakdowns": {
       "post": {
-        "operationId": "submit_4",
+        "operationId": "submit_3",
         "parameters": [
           {
             "in": "path",
@@ -4238,7 +4260,7 @@
     },
     "/api/episodes/{episodeId}/generation-batches": {
       "get": {
-        "operationId": "list_6",
+        "operationId": "list_5",
         "parameters": [
           {
             "in": "path",
@@ -4287,7 +4309,7 @@
         ]
       },
       "post": {
-        "operationId": "submit_3",
+        "operationId": "submit_2",
         "parameters": [
           {
             "in": "path",
@@ -4596,7 +4618,7 @@
     },
     "/api/episodes/{episodeId}/shots": {
       "get": {
-        "operationId": "list_8",
+        "operationId": "list_7",
         "parameters": [
           {
             "in": "path",
@@ -4674,6 +4696,15 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FrameReview"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -4751,199 +4782,6 @@
         ],
         "tags": [
           "episode-controller"
-        ]
-      }
-    },
-    "/api/episodes/{episodeId}/storyboard-variants": {
-      "get": {
-        "operationId": "list_5",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "episodeId",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/StoryboardVariantOverview"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "security": [
-          {
-            "session": []
-          }
-        ],
-        "tags": [
-          "storyboard-variant-controller"
-        ]
-      },
-      "post": {
-        "operationId": "submit_2",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "episodeId",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
-            "in": "header",
-            "name": "X-CSRF-TOKEN",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StoryboardVariantSubmit"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/StoryboardVariant"
-                }
-              }
-            },
-            "description": "Accepted"
-          }
-        },
-        "security": [
-          {
-            "session": []
-          }
-        ],
-        "tags": [
-          "storyboard-variant-controller"
-        ]
-      }
-    },
-    "/api/episodes/{episodeId}/storyboard-variants/revisions/{revisionId}/adopt": {
-      "post": {
-        "operationId": "adopt",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "episodeId",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "path",
-            "name": "revisionId",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
-            "in": "header",
-            "name": "X-CSRF-TOKEN",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StoryboardVariantAdopt"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "No Content"
-          }
-        },
-        "security": [
-          {
-            "session": []
-          }
-        ],
-        "tags": [
-          "storyboard-variant-controller"
-        ]
-      }
-    },
-    "/api/episodes/{episodeId}/storyboard-variants/{variantId}/archive": {
-      "post": {
-        "operationId": "archive",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "episodeId",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "path",
-            "name": "variantId",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
-            "in": "header",
-            "name": "X-CSRF-TOKEN",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "No Content"
-          }
-        },
-        "security": [
-          {
-            "session": []
-          }
-        ],
-        "tags": [
-          "storyboard-variant-controller"
         ]
       }
     },
@@ -5042,6 +4880,64 @@
             }
           },
           "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageCreation"
+                }
+              }
+            },
+            "description": "Accepted"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "image-experience-controller"
+        ]
+      }
+    },
+    "/api/image-experience/creations/with-reference": {
+      "post": {
+        "operationId": "createWithReference",
+        "parameters": [
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "reference": {
+                    "format": "binary",
+                    "type": "string"
+                  },
+                  "request": {
+                    "$ref": "#/components/schemas/ImageCreationRequest"
+                  }
+                },
+                "required": [
+                  "reference",
+                  "request"
+                ],
+                "type": "object"
+              }
+            }
+          }
         },
         "responses": {
           "202": {
@@ -5231,6 +5127,32 @@
       }
     },
     "/api/image-experience/recipes": {
+      "get": {
+        "operationId": "recipes",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ImageRecipe"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "image-experience-controller"
+        ]
+      },
       "post": {
         "operationId": "recipe",
         "parameters": [
@@ -6318,6 +6240,53 @@
         ]
       }
     },
+    "/api/shots/{shotId}/images/{imageId}": {
+      "delete": {
+        "operationId": "deleteCandidate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "shotId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "imageId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Fetch /api/auth/csrf with the same session cookie; refresh after login.",
+            "in": "header",
+            "name": "X-CSRF-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "tags": [
+          "shot-controller"
+        ]
+      }
+    },
     "/api/shots/{shotId}/selected-image": {
       "put": {
         "operationId": "select",
@@ -6478,7 +6447,7 @@
     },
     "/api/skills": {
       "get": {
-        "operationId": "list_7",
+        "operationId": "list_6",
         "parameters": [
           {
             "in": "query",

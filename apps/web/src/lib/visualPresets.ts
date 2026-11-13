@@ -33,30 +33,32 @@ export const visualPresets: VisualPreset[] = [
   // 真人剧
   { id: 'realistic', category: 'live', label: '精品短剧', hint: '真人电视剧 · 大师构图', image: '/style/realistic-pinterest.jpg', tone: ['#3a3f44', '#8a8f92'] },
   { id: 'gufeng', category: 'live', label: '精品古装', hint: '专业打光 · 电视剧质感', image: '/style/gufeng-pinterest.jpg', imagePosition: '50% 35%', tone: ['#3b2a24', '#a06f4e'] },
-  { id: 'zhangyimou', category: 'live', label: '张艺谋风格', hint: '极致用色 · 仪式感', image: '/style/zhangyimou-pinterest.jpg', imagePosition: '50% 48%', tone: ['#4a1414', '#c0392b'] },
+  { id: 'zhangyimou', category: 'live', label: '张艺谋风格', hint: '极致用色 · 仪式感', image: '/style/zhangyimou-pinterest.jpg', tone: ['#4a1414', '#c0392b'] },
   { id: 'xianxia', category: 'live', label: '古装仙侠', hint: '临江仙 · 美白滤镜', image: '/style/xianxia-pinterest.jpg', imagePosition: '50% 0%', tone: ['#33465a', '#a9c6d8'] },
   { id: 'minguo', category: 'live', label: '民国谍战', hint: '旗袍弄堂 · 冷灰调', image: '/style/minguo-pinterest.jpg', imagePosition: '50% 35%', tone: ['#2b2f33', '#6b7378'] },
-  { id: 'urban', category: 'live', label: '都市言情', hint: '柔光 · 生活质感', image: '/style/urban-pinterest.jpg', tone: ['#3e3a3a', '#c3a9a0'] },
+  { id: 'urban', category: 'live', label: '都市言情', hint: '柔光 · 生活质感', image: '/style/urban-pinterest.jpg', imagePosition: '50% 22%', tone: ['#3e3a3a', '#c3a9a0'] },
   { id: 'crime', category: 'live', label: '悬疑刑侦', hint: '低照度 · 冷蓝夜戏', image: '/style/crime-pinterest.jpg', tone: ['#141a24', '#3f5a78'] },
   { id: 'war', category: 'live', label: '战争史诗', hint: '尘烟火光 · 高对比', image: '/style/war-pinterest.jpg', imagePosition: '50% 60%', tone: ['#2f2a22', '#a67c3d'] },
-  { id: 'retro', category: 'live', label: '年代烟火', hint: '暖褐褪色 · 胶片味', image: '/style/retro-pinterest.jpg', imagePosition: '50% 88%', tone: ['#3c2f24', '#b08b5f'] },
+  { id: 'retro', category: 'live', label: '年代烟火', hint: '暖褐褪色 · 胶片味', image: '/style/retro-pinterest.jpg', imagePosition: '50% 72%', tone: ['#3c2f24', '#b08b5f'] },
 
   // 漫剧：饱和度与线稿是主要区分点
   { id: 'anime', category: 'comic', label: '日系赛璐璐', hint: '高饱和 · 清晰线稿', image: '/style/anime-pinterest.jpg', imagePosition: '50% 65%', tone: ['#2a3560', '#8fb6e8'] },
   { id: 'guoman3d', category: 'comic', label: '国漫三维', hint: '写实材质 · 国风建模', image: '/style/guoman3d-pinterest.jpg', tone: ['#2b2320', '#7d5a46'] },
   { id: 'ink', category: 'comic', label: '水墨古风', hint: '留白 · 淡彩晕染', image: '/style/ink-pinterest.jpg', imagePosition: '50% 30%', tone: ['#22262a', '#9aa3aa'] },
-  { id: 'american', category: 'comic', label: '美漫硬派', hint: '粗描边 · 强阴影', image: '/style/american-pinterest.jpg', imagePosition: '50% 28%', tone: ['#1c1c22', '#c9a227'] },
-  { id: 'shojo', category: 'comic', label: '少女漫', hint: '柔光 · 粉彩', image: '/style/shojo-pinterest.jpg', imagePosition: '50% 24%', tone: ['#4a3548', '#e0b7cf'] },
+  { id: 'american', category: 'comic', label: '美漫硬派', hint: '粗描边 · 强阴影', image: '/style/american-pinterest.jpg', imagePosition: '50% 24%', tone: ['#1c1c22', '#c9a227'] },
+  { id: 'shojo', category: 'comic', label: '少女漫', hint: '柔光 · 粉彩', image: '/style/shojo-pinterest.jpg', imagePosition: '50% 44%', tone: ['#4a3548', '#e0b7cf'] },
   { id: 'pixel', category: 'comic', label: '像素剧场', hint: '8-bit · 复古游戏', image: '/style/pixel-pinterest.jpg', imagePosition: '50% 60%', tone: ['#1d2b1f', '#5f9e63'] },
+  { id: 'storybook', category: 'comic', label: '手绘童话', hint: '手绘背景 · 明亮自然光', image: '/style/storybook-pinterest.jpg', tone: ['#314833', '#90b7aa'] },
 
   // 风格化：极端调色，方便做视觉方向的对照
   { id: 'film', category: 'stylized', label: '电影胶片', hint: '颗粒感 · 宽画幅', image: '/style/film-pinterest.jpg', imagePosition: '50% 65%', tone: ['#1b1a24', '#6b5a4a'] },
   { id: 'cyber', category: 'stylized', label: '赛博朋克', hint: '霓虹 · 金属冷调', image: '/style/cyber-pinterest.jpg', tone: ['#101a2c', '#7b57e0'] },
   { id: 'lineart', category: 'stylized', label: '黑白线描', hint: '单色 · 结构线稿', image: '/style/lineart-pinterest.jpg', imagePosition: '50% 45%', tone: ['#1a1d21', '#d9dee4'] },
-  { id: 'noir', category: 'stylized', label: '黑白默片', hint: '高反差 · 硬光', image: '/style/noir-pinterest.jpg', imagePosition: '50% 40%', tone: ['#141414', '#c9c9c9'] },
+  { id: 'noir', category: 'stylized', label: '黑白默片', hint: '高反差 · 硬光', image: '/style/noir-pinterest.jpg', imagePosition: '50% 28%', tone: ['#141414', '#c9c9c9'] },
   { id: 'hk90s', category: 'stylized', label: '港风胶片', hint: '浓郁色 · 夜街霓虹', image: '/style/hk90s-pinterest.jpg', tone: ['#28132a', '#c2185b'] },
   { id: 'oil', category: 'stylized', label: '油画质感', hint: '笔触 · 伦勃朗光', image: '/style/oil-pinterest.jpg', imagePosition: '50% 25%', tone: ['#2a2119', '#8f6b3e'] },
   { id: 'clay', category: 'stylized', label: '定格黏土', hint: '手作 · 微缩布景', image: '/style/clay-pinterest.jpg', tone: ['#33291f', '#c08552'] },
+  { id: 'woodblock', category: 'stylized', label: '木版印刷', hint: '分色套印 · 纸纹与色块', image: '/style/woodblock-pinterest.jpg', imagePosition: '50% 65%', tone: ['#233f57', '#c3a5bc'] },
 ];
 
 export const DEFAULT_VISUAL_TYPE = 'realistic';

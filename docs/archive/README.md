@@ -8,5 +8,5 @@
 | 基础生成链路 | [01 后端骨架](backend-phase1.md) · [02 项目与分集](backend-phase2.md) · [03 拆镜](backend-phase3.md) · [04 资产与图片](backend-phase4.md) · [05 视频与首帧](backend-phase5.md) · [06 观测与验收](backend-phase6.md) |
 | 批量派发和准入 | [07 RabbitMQ 批次](backend-phase7.md) · [08 Redis 准入](backend-phase8.md) |
 | 对话和团队 | [09 自然语言工作台](backend-phase9.md) · [10 团队管理](backend-phase10-team-management.md) |
-| 创作和反馈 | [11 分镜出图方案](creative-variants-plan.md) · [12 主／子 Agent 与上下文](backend-phase12.md) · [13 图片纠正、偏好与配方](image-learning.md) |
+| 创作和反馈 | [11 分镜出图方案（已移除）](creative-variants-plan.md) · [12 主／子 Agent 与上下文](backend-phase12.md) · [13 图片纠正、偏好与配方](image-learning.md) |
 | 共享契约 | [阶段一至八的契约变更](contracts-history.md) |

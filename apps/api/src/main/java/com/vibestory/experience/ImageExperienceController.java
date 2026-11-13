@@ -3,10 +3,13 @@ package com.vibestory.experience;
 import com.vibestory.auth.Viewer;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/image-experience")
@@ -31,6 +34,14 @@ public class ImageExperienceController {
         return creation.create(user.id(), request);
     }
 
+    @PostMapping(value = "/creations/with-reference", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    ImageExperience.Creation createWithReference(@AuthenticationPrincipal Viewer user,
+                                                 @Valid @RequestPart ImageCreationService.Request request,
+                                                 @RequestPart MultipartFile reference) {
+        return creation.createWithReference(user.id(), request, reference);
+    }
+
     @io.swagger.v3.oas.annotations.media.Schema(name = "ImageDecisionInput")
     public record Decide(@NotNull ImageExperience.Decision decision) {}
 
@@ -47,6 +58,11 @@ public class ImageExperienceController {
     @PutMapping("/preferences/{id}")
     ImageExperience.Preference edit(@AuthenticationPrincipal Viewer user, @PathVariable UUID id, @Valid @RequestBody ImageExperience.EditPreference request) {
         return experience.editPreference(user.id(), id, request);
+    }
+
+    @GetMapping("/recipes")
+    List<ImageExperience.Recipe> recipes(@AuthenticationPrincipal Viewer user) {
+        return experience.recipes(user.id());
     }
 
     @PostMapping("/recipes")

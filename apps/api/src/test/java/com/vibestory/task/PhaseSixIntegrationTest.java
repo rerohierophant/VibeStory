@@ -42,7 +42,7 @@ class PhaseSixIntegrationTest extends PostgresSupport {
     private Logger taskLog, scopeLog;
 
     @BeforeEach void setup() {
-        db.execute("truncate app_user,storage_cleanup restart identity cascade");
+        resetDatabase(db);
         alice = account("alice@phase6.test"); bob = account("bob@phase6.test");
         long project = db.fetchOne("insert into project(user_id,name,visual_type) values (?,'验收','realistic') returning id", alice.id()).get(0, Long.class);
         long episode = db.fetchOne("insert into episode(user_id,project_id,episode_index,title) values (?,?,1,'一') returning id", alice.id(), project).get(0, Long.class);

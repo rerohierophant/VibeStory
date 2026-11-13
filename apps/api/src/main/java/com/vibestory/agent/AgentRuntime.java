@@ -3,6 +3,7 @@ package com.vibestory.agent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.vibestory.agent.AgentConversationController.ChatInput;
 import com.vibestory.agent.WorkbenchAgent.AgentResult;
 import com.vibestory.common.ApiException;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.springframework.stereotype.Service;
@@ -54,12 +56,14 @@ public class AgentRuntime {
         return transactions.execute(status -> {
             if (admission.enabled()) throw ApiException.conflict("共享文本准入开启时暂不能发起 Agent 模型运行");
             Long project = input.projectId();
-            if (input.projectId() != null) scope.personalProject(user, input.projectId());
             if (input.episodeId() != null) {
+                long parent = scope.lockEpisode(user, input.episodeId());
                 scope.personalEpisode(user, input.episodeId());
-                var target = db.fetchOne("select project_id from episode where id=? and user_id=?",input.episodeId(),user);
-                if (target == null || project != null && !project.equals(target.get(0,Long.class))) throw ApiException.notFound();
-                project = target.get(0,Long.class);
+                if (project != null && project != parent) throw ApiException.notFound();
+                project = parent;
+            } else if (project != null) {
+                scope.lockProject(user, project);
+                scope.personalProject(user, project);
             }
             db.execute("insert into agent_conversation(id,user_id,title) values (?,?,?) on conflict(id) do nothing",
                 conversation, user, CreativeSkill.clip(input.instruction(), 28));
@@ -85,15 +89,21 @@ public class AgentRuntime {
 
     public void runChild(Record turn, Record session, UUID creativeLease) {
         UUID id = turn.get("id", UUID.class);
-        transactions.executeWithoutResult(status -> {
-            long user = db.fetchOne("select user_id from project where id=?", session.get("project_id")).get(0, Long.class);
+        boolean canRun = Boolean.TRUE.equals(transactions.execute(status -> {
+            long project = session.get("project_id", Long.class);
+            var parent = db.fetchOne("select user_id from project where id=? for update", project);
+            if (parent == null || !db.fetchExists(db.selectOne().from("creative_turn")
+                    .where("id=? and state='RUNNING' and lease_id=?", id, creativeLease))) return false;
+            long user = parent.get(0, Long.class);
             if (db.fetchOne("select id from agent_run where id=?", id) == null)
-                create(id, turn.get("session_id", UUID.class), id, user, session.get("project_id", Long.class),
+                create(id, turn.get("session_id", UUID.class), id, user, project,
                     session.get("episode_id", Long.class), id, session.get("role", String.class), turn.get("instruction", String.class));
-        });
+            return true;
+        }));
+        if (!canRun) return;
         drive(id, creativeLease);
         var run = db.fetchOne("select state,error from agent_run where id=?", id);
-        if (List.of("FAILED","UNKNOWN").contains(run.get("state", String.class))) db.execute("""
+        if (run != null && List.of("FAILED","UNKNOWN").contains(run.get("state", String.class))) db.execute("""
             update creative_turn set state=?,error=?,lease_id=null,lease_until=null where id=? and state='RUNNING' and lease_id=?
             """, run.get("state"), run.get("error"), id, creativeLease);
     }
@@ -101,6 +111,14 @@ public class AgentRuntime {
     public void drive(UUID id) { drive(id, null); }
 
     private void drive(UUID id, UUID creativeLease) {
+        drive(id, creativeLease, null, null);
+    }
+
+    void driveWithReply(UUID id, Runnable started, Consumer<String> delta) {
+        drive(id, null, started, delta);
+    }
+
+    private void drive(UUID id, UUID creativeLease, Runnable started, Consumer<String> delta) {
         UUID lease = UUID.randomUUID();
         var claimed = transactions.execute(status -> {
             // A lost real response is not safe to resend. Mock calls can be reconstructed from the saved request.
@@ -125,6 +143,7 @@ public class AgentRuntime {
         });
         if (claimed == null) return;
         try {
+            if (started != null) started.run();
             while (true) {
                 var run = renew(id, lease, creativeLease);
                 if (run == null) return;
@@ -145,6 +164,7 @@ public class AgentRuntime {
                     if(renew(id,lease,creativeLease)==null) throw ApiException.conflict("上下文整理租约已变化");
                 });
                 JsonNode request = prepared.request();
+                if (delta != null) ((ObjectNode) request).put("stream", true);
                 if (encode(request).getBytes(StandardCharsets.UTF_8).length > MAX_CONTEXT_BYTES) {
                     fail(id, lease, "FAILED", "本轮上下文超过预算，请缩小任务或开启新轮次"); return;
                 }
@@ -158,7 +178,14 @@ public class AgentRuntime {
                           context_before_bytes=excluded.context_before_bytes,context_after_bytes=excluded.context_after_bytes
                         """, id, round, encode(request),prepared.beforeBytes(),prepared.afterBytes());
                 });
-                var reply = model.complete(run.get("role", String.class), request);
+                String role = run.get("role", String.class);
+                // An existing business receipt determines the final reply, except after waiting for a child.
+                var lastMessage = messages.path(messages.size() - 1);
+                boolean streamText = delta != null && (run.get("result") == null ||
+                    lastMessage.path("role").asText().equals("tool") &&
+                    decode(lastMessage.path("content").asText()).path("tool").asText().equals("await_child"));
+                var reply = delta == null ? model.complete(role, request)
+                    : model.completeStreaming(role, request, streamText ? delta : ignored -> {});
                 var assistant = validateReply(reply.message(), id);
                 transactions.executeWithoutResult(status -> {
                     var current = guard(id, lease);
@@ -176,6 +203,7 @@ public class AgentRuntime {
                     finishMain(id, lease, assistant.path("content").asText());
                     return;
                 }
+                if (delta != null && !assistant.path("content").asText().isEmpty()) delta.accept("");
             }
         } catch (ProviderException error) {
             fail(id, lease, error.unknown() ? "UNKNOWN" : "FAILED", error.getMessage());
@@ -200,6 +228,9 @@ public class AgentRuntime {
         final JsonNode arguments = args;
         try {
             return Boolean.TRUE.equals(transactions.execute(status -> {
+                // Match deletion's project-before-run lock order before invoking business writes.
+                Long project = run.get("project_id", Long.class);
+                if (project != null) scope.lockProject(run.get("user_id", Long.class), project);
                 var current = guard(id, lease);
                 var outcome = tools.execute(new AgentTools.Context(current, creativeLease), callId, name, arguments);
                 if (outcome.waiting()) {

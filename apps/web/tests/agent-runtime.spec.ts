@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { isAgentReply, readAgentReply } from './agent-reply';
 import { writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 
-test('page and main agent share child tool loops and resume a two-agent request', async ({ page, context, baseURL }, testInfo) => {
+test('creative API and main agent share child tool loops and resume a two-agent request', async ({ page, context, baseURL }, testInfo) => {
   await context.route('**/*', route => route.request().url().startsWith(baseURL + '/') ? route.continue() : route.abort());
   await page.goto('/login');
   await page.getByLabel('邮箱', { exact: true }).fill(process.env.WEB_TEST_EMAIL!);
@@ -21,25 +23,23 @@ test('page and main agent share child tool loops and resume a two-agent request'
   expect(saved.ok(), await saved.text()).toBe(true);
   const creativePath = `/api/episodes/${episodeId}/creative`;
   await page.goto(`/projects/${projectId}/episodes/${episodeId}/story`);
-  const creative = page.getByRole('region', { name: '本集创作会话' });
-  await creative.getByRole('button', { name: '整理本集剧本' }).click();
-  await expect(creative.getByRole('button', { name: '审阅脚本' })).toBeVisible();
+  const agent = page.getByRole('complementary', { name: 'Agent 对话' });
+  await expect(agent.getByRole('button', { name: '创作草案' })).toHaveCount(0);
+  const started = await page.request.post(`${creativePath}/script`, { headers, data: { requestKey: randomUUID() } });
+  expect(started.ok(), await started.text()).toBe(true);
+  await expect.poll(async () => (await (await page.request.get(creativePath)).json()).script.state).toBe('READY');
   const first = await (await page.request.get(creativePath)).json();
   const firstTrace = await (await page.request.get(`/api/agent/runs/${first.script.id}`)).json();
   expect(firstTrace.trace.map((step: { tool: string }) => step.tool)).toEqual(['load_skill', 'read_input', 'read_previous', 'submit_draft']);
-  await creative.locator('summary').filter({ hasText: '执行记录' }).first().click();
-  await expect(creative.getByText('校验并保存草案 · 完成')).toBeVisible();
-  await page.getByRole('button', { name: 'Agent', exact: true }).click();
-  const agent = page.getByRole('complementary', { name: 'Agent 对话' });
-  const response = page.waitForResponse(r => r.url().endsWith('/messages') && r.request().method() === 'POST');
+  const response = page.waitForResponse(isAgentReply);
   await agent.getByLabel('Agent 指令').fill('先整理本集剧本，然后规划分镜');
   await agent.getByRole('button', { name: '发送', exact: true }).click();
   const reply = await response;
   expect(reply.ok(), await reply.text()).toBe(true);
-  const transcript = await reply.json();
-  const mainRun = transcript.messages.at(-1).execution.id;
+  const { transcript } = await readAgentReply(reply);
+  const mainRun = transcript.messages!.at(-1)!.execution!.id;
   await expect.poll(async () => (await (await page.request.get(`/api/agent/runs/${mainRun}`)).json()).state).toBe('DONE');
-  await expect(agent.getByText('剧本与分镜草案已就绪，请在故事页审阅后应用。')).toBeVisible();
+  await expect(agent.getByText(/剧本与分镜草案已就绪/)).toBeVisible();
   const after = await (await page.request.get(creativePath)).json();
   expect(after.script.previousId).toBe(first.script.id);
   expect(after.storyboard.scriptId).toBe(after.script.id);
@@ -48,15 +48,14 @@ test('page and main agent share child tool loops and resume a two-agent request'
   expect(runTrace.trace.filter((step: { tool: string }) => step.tool === 'delegate_child')).toHaveLength(2);
   expect(runTrace.trace.filter((step: { tool: string }) => step.tool === 'await_child')).toHaveLength(2);
   await page.reload();
-  await page.getByRole('button', { name: 'Agent', exact: true }).click();
-  await expect(agent.getByText('剧本与分镜草案已就绪，请在故事页审阅后应用。')).toBeVisible();
+  await expect(agent.getByText(/剧本与分镜草案已就绪/)).toBeVisible();
   await agent.locator('summary').filter({ hasText: '执行记录' }).last().click();
   await expect(agent.getByText('接收专业任务结果 · 完成', { exact: false })).toHaveCount(2);
   const childTrace = await (await page.request.get(`/api/agent/runs/${after.storyboard.id}`)).json();
   await writeFile(testInfo.outputPath('agent-runtime-trace.json'), JSON.stringify({ firstTrace, runTrace, childTrace }, null, 2) + '\n');
 });
 
-test('large creative tool results are recovered from scoped references after a page submission', async ({ page, context, baseURL }, testInfo) => {
+test('large creative tool results are recovered from scoped references after a chat submission', async ({ page, context, baseURL }, testInfo) => {
   await context.route('**/*', route => route.request().url().startsWith(baseURL + '/') ? route.continue() : route.abort());
   await page.goto('/login');
   await page.getByLabel('邮箱', { exact: true }).fill(process.env.WEB_TEST_EMAIL!);
@@ -76,19 +75,21 @@ test('large creative tool results are recovered from scoped references after a p
   const saved = await page.request.put(`/api/episodes/${episodeId}/story`, { headers, data: { story: source } });
   expect(saved.ok(), await saved.text()).toBe(true);
   await page.goto(`/projects/${projectId}/episodes/${episodeId}/story`);
-  const creative = page.getByRole('region', { name: '本集创作会话' });
-  await creative.getByRole('button', { name: '整理本集剧本' }).click();
-  await expect(creative.getByRole('button', { name: '审阅脚本' })).toBeVisible();
-  const state = await (await page.request.get(`/api/episodes/${episodeId}/creative`)).json();
+  const agent = page.getByRole('complementary', { name: 'Agent 对话' });
+  await agent.getByLabel('Agent 指令').fill('整理本集剧本');
+  await agent.getByRole('button', { name: '发送', exact: true }).click();
+  await expect(agent.getByRole('status').filter({ hasText: '已派发剧本子 Agent' })).toBeVisible();
+  const creativePath = `/api/episodes/${episodeId}/creative`;
+  await expect.poll(async () => (await (await page.request.get(creativePath)).json()).script?.state).toBe('READY');
+  const state = await (await page.request.get(creativePath)).json();
   const trace = await (await page.request.get(`/api/agent/runs/${state.script.id}`)).json();
   expect(trace.state).toBe('DONE');
   expect(trace.context.offloadedResults).toBeGreaterThan(0);
   expect(trace.trace.some((step: { tool: string }) => step.tool === 'read_tool_result')).toBe(true);
-  const draft = await (await page.request.get(`/api/episodes/${episodeId}/creative/script/${state.script.id}`)).json();
+  const draft = await (await page.request.get(`${creativePath}/script/${state.script.id}`)).json();
   expect(draft.script).toBe(source);
   await page.reload();
-  await expect(creative.getByRole('button', { name: '审阅脚本' })).toBeVisible();
-  await creative.locator('summary').filter({ hasText: '执行记录' }).first().click();
-  await expect(creative.getByText('读取已保存结果 · 完成', { exact: false })).toHaveCount(trace.trace.filter((step: { tool: string }) => step.tool === 'read_tool_result').length);
+  await expect(agent.getByRole('status').filter({ hasText: '已派发剧本子 Agent' })).toBeVisible();
+  expect(await (await page.request.get(`/api/agent/runs/${state.script.id}`)).json()).toEqual(trace);
   await writeFile(testInfo.outputPath('context-offload-trace.json'), JSON.stringify(trace, null, 2) + '\n');
 });

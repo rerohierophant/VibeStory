@@ -32,7 +32,7 @@ public class ProjectController {
                          @NotBlank @Size(max = 80) String visualType, @Size(max = 4000) String style) {}
     @io.swagger.v3.oas.annotations.media.Schema(name = "UpdateProject")
     public record Update(@Size(max = 120) String name, @Size(max = 80) String visualType, @Size(max = 4000) String style,
-                         @PositiveOrZero Long expectedVersion) {}
+                         @Size(max = 2000) String synopsis, @PositiveOrZero Long expectedVersion) {}
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -56,7 +56,7 @@ public class ProjectController {
     Project.View update(@AuthenticationPrincipal Viewer viewer, @PathVariable long id, @Valid @RequestBody Update body) {
         var grant = access.edit(viewer.id(), PROJECT, id);
         grant.requireVersion(body.expectedVersion());
-        return projects.update(grant.partitionUserId(), id, body.name(), body.visualType(), body.style(), body.expectedVersion());
+        return projects.update(grant.partitionUserId(), id, body.name(), body.visualType(), body.style(), body.synopsis(), body.expectedVersion());
     }
 
     @DeleteMapping("/{id}") @ResponseStatus(HttpStatus.NO_CONTENT)

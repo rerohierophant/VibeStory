@@ -1,28 +1,34 @@
-import { useMemo, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Badge } from '@/components/Badge';
+import { useId, useMemo, useRef, useState } from 'react';
+import { Link, NavLink, Outlet, useMatch, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
+import { EpisodeNameInput } from '@/components/EpisodeNameInput';
+import { Modal } from '@/components/Modal';
 import { SidebarToggle } from '@/components/SidebarToggle';
+import { useCreativeRecipes } from '@/features/CreativeRecipes';
+import { episodeBreakdownProgress } from '@/lib/episodeProgress';
 import { sidebarWidth, useSidebarCollapsed } from '@/lib/sidebar';
 import { useProject, useProjectShots, useStore } from '@/lib/store';
 import type { Episode } from '@/lib/types';
 
 type EpisodePhase = 'empty' | 'draft' | 'making' | 'done' | 'planned';
+type EpisodeStats = { confirmed: number; withImage: number; withVideo: number; total: number };
+const emptyStats: EpisodeStats = { confirmed: 0, withImage: 0, withVideo: 0, total: 0 };
 
-function episodesPhase(episode: Episode, shotStates: { confirmed: number; total: number }): {
+function episodesPhase(episode: Episode, shotStates: EpisodeStats): {
   phase: EpisodePhase;
   label: string;
 } {
-  if (episode.breakdown === 'running') return { phase: 'making', label: '拆解中' };
-  // 有镜头就一定拆过：以镜头为准，避免「未拆解」和「4 镜」同时出现
-  if (shotStates.total === 0) {
+  const breakdown = episodeBreakdownProgress(episode.breakdown, shotStates.total);
+  if (breakdown === 'running') return { phase: 'making', label: '拆解中' };
+  if (breakdown === 'idle') {
     return episode.story.trim() ? { phase: 'planned', label: '待拆解' } : { phase: 'empty', label: '空白' };
   }
-  // 只有「待确认 / 已确认」一个状态：全部确认即完成，不再分「制作中 / 已定稿」
-  if (shotStates.confirmed === shotStates.total) return { phase: 'done', label: '已确认' };
-  if (shotStates.confirmed === 0) return { phase: 'draft', label: '待确认' };
-  return { phase: 'making', label: `确认中 ${shotStates.confirmed}/${shotStates.total}` };
+  if (shotStates.withVideo === shotStates.total) return { phase: 'done', label: '视频已生成' };
+  if (shotStates.withVideo > 0) return { phase: 'making', label: `视频 ${shotStates.withVideo}/${shotStates.total}` };
+  if (shotStates.withImage < shotStates.total) return { phase: 'planned', label: '待出图' };
+  if (shotStates.confirmed < shotStates.total) return { phase: 'draft', label: '待确认分镜' };
+  return { phase: 'making', label: '待生成视频' };
 }
 
 const dotTone: Record<EpisodePhase, string> = {
@@ -52,6 +58,7 @@ function NavItem({
     <NavLink
       to={to}
       end={end}
+      aria-label={collapsed ? label : undefined}
       title={collapsed ? label : undefined}
       className={({ isActive }) =>
         `flex items-center rounded-card text-[13px] transition ${
@@ -70,22 +77,69 @@ function NavItem({
   );
 }
 
+function EpisodeActions({ episode, onRename, onDelete }: {
+  episode: Episode;
+  onRename: () => void;
+  onDelete: () => void;
+}) {
+  const id = useId();
+  const menu = useRef<HTMLDivElement>(null);
+
+  return <>
+    <button
+      type="button"
+      popoverTarget={id}
+      aria-label={`第 ${episode.index} 集操作`}
+      title="分集操作"
+      className="mr-1.5 grid size-8 shrink-0 place-items-center rounded-card text-muted/75 transition hover:bg-hover/70 hover:text-fg"
+    >
+      <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor" className="size-4">
+        <circle cx="3" cy="8" r="1.25" />
+        <circle cx="8" cy="8" r="1.25" />
+        <circle cx="13" cy="8" r="1.25" />
+      </svg>
+    </button>
+    <div
+      id={id}
+      ref={menu}
+      popover="auto"
+      className="inset-auto m-0 mt-1 w-32 rounded-card border border-stroke/50 bg-panel p-1 text-xs text-fg shadow-xl [position-area:bottom_span-left] [position-try-fallbacks:flip-block] [justify-self:end]"
+    >
+      <button type="button" className="block w-full rounded px-3 py-2 text-left hover:bg-hover/60"
+        onClick={() => { menu.current?.hidePopover(); onRename(); }}>
+        修改集名
+      </button>
+      <button type="button" className="block w-full rounded px-3 py-2 text-left text-error-soft hover:bg-error/10"
+        onClick={() => { menu.current?.hidePopover(); onDelete(); }}>
+        删除分集
+      </button>
+    </div>
+  </>;
+}
+
 export function ProjectLayout() {
   const { id = '' } = useParams();
   const project = useProject(id);
   const shots = useProjectShots(id);
-  const { characters, scenes, createEpisode, workspaceLoading, workspaceTeam, workspaceReadOnly } = useStore();
+  const { characters, scenes, createEpisode, updateEpisode, deleteEpisode, workspaceLoading, workspaceTeam, workspaceReadOnly, mode, user } = useStore();
+  const recipeUserId = mode === 'api' && project && !project.teamId ? user?.id : undefined;
+  const { data: recipes } = useCreativeRecipes(recipeUserId);
   const navigate = useNavigate();
-  const location = useLocation();
+  const activeEpisodeId = useMatch('/projects/:id/episodes/:episodeId/:tab?')?.params.episodeId;
   const [episodeFilter, setEpisodeFilter] = useState('');
   const [collapsed, toggleSidebar] = useSidebarCollapsed();
+  const [renamingId, setRenamingId] = useState<string>();
+  const [deleting, setDeleting] = useState<Episode>();
+  const [deletePending, setDeletePending] = useState(false);
 
   const episodeStats = useMemo(() => {
-    const map = new Map<string, { confirmed: number; total: number }>();
+    const map = new Map<string, EpisodeStats>();
     for (const s of shots) {
-      const cur = map.get(s.episodeId) ?? { confirmed: 0, total: 0 };
+      const cur = map.get(s.episodeId) ?? { ...emptyStats };
       cur.total += 1;
-      if (s.status === 'confirmed') cur.confirmed += 1;
+      if (s.images.length > 0) cur.withImage += 1;
+      if (s.selectedImageId && s.status === 'confirmed') cur.confirmed += 1;
+      if (s.video.ready) cur.withVideo += 1;
       map.set(s.episodeId, cur);
     }
     return map;
@@ -106,6 +160,7 @@ export function ProjectLayout() {
 
   const charCount = characters.filter((c) => c.projectId === project.id).length;
   const sceneCount = scenes.filter((c) => c.projectId === project.id).length;
+  const canAddEpisode = mode === 'demo' || !!project.teamId;
   const episodes = [...project.episodes].sort((a, b) => a.index - b.index);
   const visibleEpisodes = episodes.filter(
     (e) =>
@@ -114,13 +169,22 @@ export function ProjectLayout() {
       String(e.index).includes(episodeFilter.trim()),
   );
 
-  const allConfirmed = episodes.length > 0 && shots.length > 0 && shots.every((s) => s.status === 'confirmed');
-
   const addEpisode = async () => {
     try {
-    const newId = await createEpisode(project.id);
-    navigate(`/projects/${project.id}/episodes/${newId}/story`);
+      const newId = await createEpisode(project.id);
+      navigate(`/projects/${project.id}/episodes/${newId}/story`);
     } catch { /* Store displays the scoped API error. */ }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleting || deletePending || workspaceReadOnly) return;
+    setDeletePending(true);
+    try {
+      await deleteEpisode(deleting.id);
+      setDeleting(undefined);
+      if (activeEpisodeId === deleting.id) navigate(`/projects/${project.id}/episodes`, { replace: true });
+    } catch { /* Store displays the scoped API error. */ }
+    finally { setDeletePending(false); }
   };
 
   return (
@@ -219,35 +283,52 @@ export function ProjectLayout() {
                 </svg>
               }
             />
+            {recipeUserId && <NavItem
+              to={`/projects/${project.id}/recipes`}
+              label="创作配方"
+              count={recipes?.length}
+              collapsed={collapsed}
+              icon={
+                <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="h-4 w-4">
+                  <rect x="3" y="2.5" width="10" height="11" rx="1.5" />
+                  <path d="M5.5 6h5m-5 3.5h5" />
+                </svg>
+              }
+            />}
           </nav>
 
-          {collapsed ? (
+          {collapsed && canAddEpisode && (
             <div className="mt-auto flex flex-col items-center pb-4">
               <button
                 type="button"
                 onClick={addEpisode}
                 disabled={workspaceReadOnly}
+                aria-label="新建一集"
                 title="新建一集"
                 className="flex h-8 w-8 items-center justify-center rounded text-muted transition hover:bg-hover/60 hover:text-fg"
               >
                 ＋
               </button>
             </div>
-          ) : (
+          )}
+          {!collapsed && (
             <>
               <div className="mx-1 mt-3 flex shrink-0 items-center justify-between border-t border-stroke/15 pb-2 pt-4">
                 <span className="text-xs text-muted">
                   分集 <span className="text-fg/70">{episodes.length}</span>
                 </span>
-                <button
-                  type="button"
-                  onClick={addEpisode}
-                  disabled={workspaceReadOnly}
-                  title="新建一集"
-                  className="flex h-6 w-6 items-center justify-center rounded text-muted transition hover:bg-hover/60 hover:text-fg"
-                >
-                  ＋
-                </button>
+                {canAddEpisode && (
+                  <button
+                    type="button"
+                    onClick={addEpisode}
+                    disabled={workspaceReadOnly}
+                    aria-label="新建一集"
+                    title="新建一集"
+                    className="flex h-6 w-6 items-center justify-center rounded text-muted transition hover:bg-hover/60 hover:text-fg"
+                  >
+                    ＋
+                  </button>
+                )}
               </div>
 
               <div className="shrink-0 px-1 pb-2">
@@ -262,52 +343,55 @@ export function ProjectLayout() {
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-thin pb-4">
                 {episodes.length === 0 ? (
                   <p className="px-3 py-6 text-[11px] leading-5 text-muted/70">
-                    还没有分集。新建一集，粘贴这一集的剧本，再拆解镜头。
+                    {canAddEpisode
+                      ? '还没有分集。新建一集，粘贴这一集的剧本，再拆解镜头。'
+                      : '还没有分集。可在项目概览导入剧本或输入故事想法。'}
                   </p>
                 ) : visibleEpisodes.length === 0 ? (
                   <p className="px-3 py-6 text-[11px] text-muted/70">没有匹配的分集</p>
                 ) : (
                   <ul className="space-y-0.5">
                     {visibleEpisodes.map((ep) => {
-                      const stats = episodeStats.get(ep.id) ?? { confirmed: 0, total: 0 };
+                      const stats = episodeStats.get(ep.id) ?? emptyStats;
                       const { phase, label } = episodesPhase(ep, stats);
-                      const active = location.pathname.includes(`/episodes/${ep.id}`);
+                      const active = activeEpisodeId === ep.id;
+                      const renaming = !workspaceReadOnly && renamingId === ep.id;
+                      const rowClass = 'flex min-w-0 flex-1 items-center gap-3 rounded-card py-2 pr-1 pl-2.5';
+                      const content = <>
+                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-[15px] ${
+                          active ? 'bg-accent-soft text-accent-ink' : 'bg-white/[0.06] text-white/70'
+                        }`}>
+                          {ep.index}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          {renaming ? <EpisodeNameInput
+                            title={ep.title}
+                            onSave={(title) => { updateEpisode(ep.id, { title }); setRenamingId(undefined); }}
+                            onCancel={() => setRenamingId(undefined)}
+                          /> : <span className="block truncate text-[13px]">{ep.title}</span>}
+                          <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted">
+                            <span className={`h-1.5 w-1.5 rounded-full ${dotTone[phase]}`} />
+                            {label}
+                          </span>
+                        </span>
+                      </>;
                       return (
-                        <li key={ep.id}>
-                          <NavLink
-                            to={`/projects/${project.id}/episodes/${ep.id}/story`}
+                        <li key={ep.id} className={`flex items-center rounded-card transition ${active ? 'bg-hover/80' : 'hover:bg-hover/40'}`}>
+                          {renaming ? <div className={rowClass}>{content}</div> : <NavLink
+                            to={`/projects/${project.id}/episodes/${ep.id}/${stats.total > 0 ? 'storyboard' : 'story'}`}
                             title={`${ep.title} · ${label}`}
-                            className={`flex items-center gap-3 rounded-card px-2.5 py-2 transition ${
-                              active ? 'bg-hover/80' : 'hover:bg-hover/40'
-                            }`}
+                            className={rowClass}
                           >
-                            <span
-                              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-[15px] ${
-                                active ? 'bg-accent-soft text-accent-ink' : 'bg-white/[0.06] text-white/70'
-                              }`}
-                            >
-                              {ep.index}
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-[13px]">{ep.title}</span>
-                              <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted">
-                                <span className={`h-1.5 w-1.5 rounded-full ${dotTone[phase]}`} />
-                                {label}
-                              </span>
-                            </span>
-                          </NavLink>
+                            {content}
+                          </NavLink>}
+                          {!workspaceReadOnly && <EpisodeActions episode={ep}
+                            onRename={() => setRenamingId(ep.id)} onDelete={() => setDeleting(ep)} />}
                         </li>
                       );
                     })}
                   </ul>
                 )}
               </div>
-
-              {allConfirmed && (
-                <div className="shrink-0 border-t border-stroke/15 px-1 py-4">
-                  <Badge tone="success">全部镜头已确认</Badge>
-                </div>
-              )}
             </>
           )}
         </aside>
@@ -318,6 +402,21 @@ export function ProjectLayout() {
       <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <Outlet />
       </main>
+      {deleting && <Modal open onClose={() => { if (!deletePending) setDeleting(undefined); }}
+        width="max-w-md" labelledBy="episode-delete-title">
+        <div className="p-6">
+          <h2 id="episode-delete-title" className="text-lg font-medium">删除分集</h2>
+          <p className="mt-3 text-sm leading-6 text-muted [overflow-wrap:anywhere]">
+            删除第 {deleting.index} 集「{deleting.title}」会同时删除本集的剧本、镜头、分镜图和视频。删除后无法恢复。
+          </p>
+          <div className="mt-6 flex justify-end gap-3">
+            <Button type="button" variant="ghost" disabled={deletePending} onClick={() => setDeleting(undefined)} autoFocus>取消</Button>
+            <Button type="button" variant="danger" disabled={deletePending || workspaceReadOnly} onClick={confirmDelete}>
+              {deletePending ? '正在删除…' : '确认删除'}
+            </Button>
+          </div>
+        </div>
+      </Modal>}
     </div>
   );
 }

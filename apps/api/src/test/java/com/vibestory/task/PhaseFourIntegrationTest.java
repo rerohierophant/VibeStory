@@ -49,7 +49,7 @@ class PhaseFourIntegrationTest extends PostgresSupport {
     private long project,episode,shot,second,character,scene;
 
     @BeforeEach void setup() throws Exception {
-        db.execute("truncate app_user,storage_cleanup restart identity cascade");
+        resetDatabase(db);
         alice=account("alice@phase4.test"); bob=account("bob@phase4.test");
         project=postJson("/api/projects",Map.of("name","第四阶段","visualType","realistic"),201).path("id").asLong();
         episode=postJson("/api/projects/"+project+"/episodes",Map.of(),201).path("id").asLong();
@@ -137,12 +137,70 @@ class PhaseFourIntegrationTest extends PostgresSupport {
         mvc.perform(put("/api/shots/"+shot+"/selected-image").with(user(alice)).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"imageId\":"+first+"}")).andExpect(status().isNoContent());
     }
 
-    @Test void draftBlocksGenerationAndScopedPathsRejectOtherUser() throws Exception {
+    @Test void confirmsTheReviewedFrameAndRejectsAStaleBatch() throws Exception {
+        db.execute("update shot set status='DRAFT' where id=?", shot);
+        finish(submit(shot,null));
+        long first=readShot().path("selectedImageId").asLong();
+        finish(submit(shot,"review-next"));
+        long next=readShot().path("images").get(1).path("id").asLong();
+        String statusPath="/api/shots/"+shot+"/status";
+        var confirm=json.writeValueAsString(Map.of("status","confirmed","imageId",next));
+        mvc.perform(put("/api/shots/"+second+"/status").with(user(alice)).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(confirm)).andExpect(status().isNotFound());
+        mvc.perform(put(statusPath).with(user(alice)).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(confirm))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("confirmed"))
+            .andExpect(jsonPath("$.selectedImageId").value(Long.toString(next)));
+        mvc.perform(put(statusPath).with(user(alice)).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"draft\"}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.selectedImageId").value(Long.toString(next)));
+        mvc.perform(post("/api/episodes/"+episode+"/shots/confirm-all").with(user(alice)).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("frames",Map.of(Long.toString(shot),Long.toString(first))))))
+            .andExpect(status().isConflict());
+        assertThat(readShot().path("status").asText()).isEqualTo("draft");
+    }
+
+    @Test void deletingStoryboardCandidatesPreservesSubmittedVideoAndClearsConfirmation() throws Exception {
+        finish(submit(shot, null));
+        var first = readShot().path("images").get(0);
+        long firstId = first.path("id").asLong();
+        long video = Long.parseLong(tasks.submit(alice.id(), shot, "video-before-delete").taskId());
+        var videoLease = store.claim("video-before-delete").orElseThrow();
+        finish(submit(shot, "replacement"));
+        var replacement = readShot().path("images").get(1);
+        String path = "/api/shots/" + shot + "/images/" + firstId;
+
+        mvc.perform(delete(path).with(user(bob)).with(csrf())).andExpect(status().isNotFound());
+        mvc.perform(delete("/api/shots/" + second + "/images/" + firstId).with(user(alice)).with(csrf()))
+            .andExpect(status().isNotFound());
+        mvc.perform(delete(path).with(user(alice)).with(csrf())).andExpect(status().isNoContent());
+        var after = readShot();
+        assertThat(after.path("images")).containsExactly(replacement);
+        assertThat(after.path("selectedImageId")).isEqualTo(replacement.path("id"));
+        assertThat(after.path("status").asText()).isEqualTo("draft");
+        mvc.perform(delete(path).with(user(alice)).with(csrf())).andExpect(status().isNoContent());
+        assertThat(readShot()).isEqualTo(after);
+        mvc.perform(put("/api/shots/" + shot + "/selected-image").with(user(alice)).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("imageId", firstId))))
+            .andExpect(status().isNotFound());
+
+        assertThat(store.succeed(videoLease, videoLease.version(), new VideoProvider.Result("mock/video", 3000))).isTrue();
+        assertThat(tasks.get(alice.id(), video).basedOn()).isEqualTo(Long.toString(firstId));
+        mvc.perform(get(first.path("url").asText()).with(user(alice)))
+            .andExpect(status().isOk()).andExpect(content().contentType("image/png"));
+        mvc.perform(delete("/api/shots/" + shot + "/images/" + replacement.path("id").asText())
+            .with(user(alice)).with(csrf())).andExpect(status().isNoContent());
+        var empty = readShot();
+        assertThat(empty.path("images")).isEmpty();
+        assertThat(empty.hasNonNull("selectedImageId")).isFalse();
+        assertThat(empty.path("video").path("basedOn").asLong()).isEqualTo(firstId);
+        finish(submit(shot, null));
+        assertThat(readShot().path("images").get(0).path("label").asText()).isEqualTo("候选 3");
+    }
+
+    @Test void draftCanGenerateAndScopedPathsRejectOtherUser() throws Exception {
         db.execute("update shot set status='DRAFT' where id=?",shot);
-        postJson("/api/shots/"+shot+"/image-tasks",Map.of(),409);
-        db.execute("update shot set status='CONFIRMED' where id=?",shot);
         var version=upload(true,character,"v1");
         finish(submit(shot,null));
+        assertThat(readShot().path("status").asText()).isEqualTo("draft");
         var image=readShot().path("images").get(0);
         for(String path:List.of(image.path("url").asText(),version.url()))
             mvc.perform(get(path).with(user(bob))).andExpect(status().isNotFound());

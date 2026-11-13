@@ -3,6 +3,8 @@ package com.vibestory.provider;
 import java.util.List;
 
 public interface TextProvider {
+    int DEFAULT_SHOT_DURATION_MS = 6000;
+
     record Capabilities(boolean querySupported, boolean idempotencyKeySupported) {}
     Capabilities capabilities();
     record SceneOption(String name, List<String> keywords) {}
@@ -10,7 +12,11 @@ public interface TextProvider {
                  String promptVersion, long storyRevision, long shotRevision, String story,
                  List<SceneOption> sceneOptions, int maxTokens, boolean disableThinking) {}
     record ShotDraft(String description, String dialogue, String sceneName, String shotSize,
-                     String cameraMove, int durationMs, List<String> characterNames) {}
+                     String cameraMove, int durationMs, List<String> characterNames) {
+        public ShotDraft withDefaultDuration() {
+            return new ShotDraft(description, dialogue, sceneName, shotSize, cameraMove, DEFAULT_SHOT_DURATION_MS, characterNames);
+        }
+    }
     record Result(List<ShotDraft> shots, String rawResponse, String actualModel) {}
     Result generate(Input input) throws InterruptedException;
 }

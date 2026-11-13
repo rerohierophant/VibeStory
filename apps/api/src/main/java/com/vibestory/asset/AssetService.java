@@ -1,8 +1,10 @@
 package com.vibestory.asset;
 
+import com.vibestory.agent.CreativeSkill.AssetDraft;
 import com.vibestory.common.ScopeGuard;
 import com.vibestory.common.TextInput;
 import com.vibestory.common.ApiException;
+import com.vibestory.provider.ImageProvider;
 import com.vibestory.storage.LocalStorage;
 import com.vibestory.style.ReferenceImage;
 import com.vibestory.style.VisualStyleService;
@@ -54,10 +56,13 @@ public class AssetService {
             : db.fetch("select a.*, p.name as project_name from " + table + " a join project p on p.id=a.project_id where a.user_id=? and a.project_id=? order by a.id", userId, projectId);
         return rows.stream().map(row -> {
             long id = row.get("id", Long.class);
-            var versions = db.fetch("select * from asset_version where " + column + "=? order by id", id);
+            var versions = db.fetch("select * from asset_version where " + column + "=? and visible_in_library order by id", id);
             String selected = versions.stream().filter(v -> v.get("is_selected", Boolean.class)).map(v -> v.get("id", String.class)).findFirst().orElse(null);
             var usage = db.fetch("select distinct s.id, e.episode_index from asset_ref r join shot s on s.id=r.shot_id join episode e on e.id=s.episode_id where r." + column + "=? order by e.episode_index,s.id", id);
-            var task = db.fetchOne("select id,status from task where user_id=? and project_id=? and type='ASSET_IMAGE' and target_type=? and target_id=? order by id desc limit 1",
+            var task = db.fetchOne("""
+                select id,status from task where user_id=? and project_id=? and type='ASSET_IMAGE' and target_type=? and target_id=?
+                    and error_code is distinct from 'PROJECT_STYLE_CHANGED' order by id desc limit 1
+                """,
                 userId, row.get("project_id", Long.class), characters ? "CHARACTER" : "SCENE", id);
             return new Card(Long.toString(id), row.get("project_id", String.class), row.get("name", String.class), row.get("description", String.class),
                 versions.stream().map(this::version).toList(), selected, row.get("project_name", String.class),
@@ -86,25 +91,47 @@ public class AssetService {
         var asset = lock(userId, character, id);
         String display = label == null || label.isBlank() ? "上传版本" : TextInput.name(label, "版本名称");
         var encoded = images.read(file);
-        String prefix = "u/" + userId + "/p/" + asset.get("project_id", Long.class) + "/assets/" + (character ? "character" : "scene") + "/" + id + "/" + java.util.UUID.randomUUID().toString().replace("-", "");
-        putFile(prefix, prefix + "/image." + encoded.extension(), encoded.bytes());
-        return addVersion(userId, asset.get("project_id", Long.class), character, id, display, "uploaded", prefix + "/image." + encoded.extension(), encoded.mediaType(), null);
+        long projectId = asset.get("project_id", Long.class);
+        String key = storeUploadedImage(userId, projectId, character, id, encoded);
+        return addVersion(userId, projectId, character, id, display, "uploaded", key, encoded.mediaType(), null, false);
+    }
+
+    // Generation references are retained with the task and excluded from the asset library.
+    @Transactional
+    public ImageProvider.Reference saveGenerationReference(long userId, long projectId, boolean character, long id,
+                                                           ReferenceImage.Encoded encoded) {
+        String key = storeUploadedImage(userId, projectId, character, id, encoded);
+        var row = db.fetchOne("insert into asset_version(user_id,project_id," + column(character)
+            + ",label,source,storage_key,media_type,visible_in_library) values (?,?,?,'本次生成参考图','uploaded',?,?,false) returning id",
+            userId, projectId, id, key, encoded.mediaType());
+        return new ImageProvider.Reference(row.get("id", String.class), character ? "CHARACTER" : "SCENE", key, encoded.mediaType());
+    }
+
+    private String storeUploadedImage(long userId, long projectId, boolean character, long id, ReferenceImage.Encoded encoded) {
+        String kind = character ? "character" : "scene";
+        String prefix = "u/" + userId + "/p/" + projectId + "/assets/" + kind + "/" + id + "/"
+            + java.util.UUID.randomUUID().toString().replace("-", "");
+        String key = prefix + "/image." + encoded.extension();
+        putFile(prefix, key, encoded.bytes());
+        return key;
     }
 
     @Transactional
-    public Version addVersion(long userId, long projectId, boolean character, long id, String label, String source, String key, String mediaType, Long taskId) {
+    public Version addVersion(long userId, long projectId, boolean character, long id, String label, String source, String key, String mediaType, Long taskId, boolean keepSelected) {
         // All callers hold the project lock; the database partial indexes also enforce one selection.
         String column = column(character);
-        db.execute("update asset_version set is_selected=false where " + column + "=? and is_selected", id);
+        boolean selected = !keepSelected || !db.fetchExists(db.selectOne().from("asset_version").where(column + "=? and is_selected", id));
+        if (!keepSelected) db.execute("update asset_version set is_selected=false where " + column + "=? and is_selected", id);
         return version(db.fetchOne("insert into asset_version(user_id,project_id," + column + ",label,source,storage_key,media_type,task_id,is_selected) values (?,?,?,?,?,?,?,?,?) returning *",
-            userId, projectId, id, label, source, key, mediaType, taskId, true));
+            userId, projectId, id, label, source, key, mediaType, taskId, selected));
     }
 
     @Transactional
     public void select(long userId, boolean character, long id, long versionId) {
         lock(userId, character, id);
         String column = column(character);
-        if (db.fetchOne("select id from asset_version where id=? and " + column + "=?", versionId, id) == null) throw ApiException.notFound();
+        if (db.fetchOne("select id from asset_version where id=? and " + column + "=? and visible_in_library", versionId, id) == null)
+            throw ApiException.notFound();
         db.execute("update asset_version set is_selected=false where " + column + "=? and is_selected", id);
         db.execute("update asset_version set is_selected=true where id=?", versionId);
     }
@@ -160,9 +187,25 @@ public class AssetService {
     }
 
     private Record resolve(long userId, long projectId, String rawName, boolean character) {
-        String name = Normalizer.normalize(TextInput.name(rawName, character ? "人物名称" : "场景名称"), Normalizer.Form.NFC);
+        String name = assetName(rawName, character);
         String table = character ? "character_asset" : "scene_asset";
         return db.fetchOne("insert into " + table + "(user_id, project_id, name) values (?, ?, ?) " +
             "on conflict (project_id, lower(name)) do update set name = " + table + ".name returning id, name", userId, projectId, name);
+    }
+
+    @Transactional
+    public void addPlanned(long userId, long projectId, boolean character, List<AssetDraft> drafts) {
+        if (drafts.isEmpty()) return;
+        scope.lockProject(userId, projectId);
+        for (var draft : drafts) {
+            String name = assetName(draft.name(), character);
+            TextInput.validate(draft.description(), 1600, "素材描述");
+            db.execute("insert into " + table(character) + "(user_id,project_id,name,description) values (?,?,?,?) "
+                + "on conflict (project_id, lower(name)) do nothing", userId, projectId, name, draft.description());
+        }
+    }
+
+    private static String assetName(String name, boolean character) {
+        return Normalizer.normalize(TextInput.name(name, character ? "人物名称" : "场景名称"), Normalizer.Form.NFC);
     }
 }

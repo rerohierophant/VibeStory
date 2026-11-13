@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { Logo, LogoMark } from '@/components/Logo';
 import { SidebarToggle } from '@/components/SidebarToggle';
+import { useCreativeRecipes } from '@/features/CreativeRecipes';
 import { sidebarWidth, useSidebarCollapsed } from '@/lib/sidebar';
 import { useStore } from '@/lib/store';
 
@@ -23,6 +24,7 @@ function NavItem({
     <NavLink
       to={to}
       end={end}
+      aria-label={collapsed ? label : undefined}
       title={collapsed ? label : undefined}
       className={({ isActive }) =>
         `flex items-center rounded-card text-[13px] transition ${
@@ -43,8 +45,11 @@ function NavItem({
 
 /** 工作台外壳：入口导航固定在左栏，项目详情使用自己的 ProjectLayout。 */
 export function HomeLayout() {
-  const { user, projects, characters, scenes } = useStore();
+  const { user, projects, characters, scenes, mode } = useStore();
   const [collapsed, toggleSidebar] = useSidebarCollapsed();
+  const recipeUserId = mode === 'api' ? user?.id : undefined;
+  const { data: recipes } = useCreativeRecipes(recipeUserId);
+  const assetCount = characters.length + scenes.length + (recipes?.length ?? 0);
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -82,10 +87,10 @@ export function HomeLayout() {
             <NavItem
               to="/assets"
               label="资产库"
-              count={characters.length + scenes.length}
+              count={assetCount}
               collapsed={collapsed}
               icon={
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="h-4 w-4">
+                <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="h-4 w-4">
                   <rect x="2" y="2" width="5.5" height="5.5" rx="1" />
                   <rect x="8.5" y="2" width="5.5" height="5.5" rx="1" />
                   <rect x="2" y="8.5" width="5.5" height="5.5" rx="1" />

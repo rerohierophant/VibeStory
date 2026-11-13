@@ -36,7 +36,7 @@ class RabbitProtocolIntegrationTest extends PostgresSupport {
     @org.junit.jupiter.api.io.TempDir java.nio.file.Path fixtureRoot;
     final TaskStore.Providers mocks=new TaskStore.Providers("mock","mock","mock");
     @BeforeEach void setup() {
-        db.execute("truncate app_user,storage_cleanup restart identity cascade");
+        resetDatabase(db);
         user=db.fetchOne("insert into app_user(email,password_hash) values ('protocol@test','unused') returning id").get(0,Long.class);
         project=db.fetchOne("insert into project(user_id,name,visual_type) values (?,'协议','realistic') returning id",user).get(0,Long.class);
         episode=db.fetchOne("insert into episode(user_id,project_id,episode_index,title) values (?,?,1,'一') returning id",user,project).get(0,Long.class);

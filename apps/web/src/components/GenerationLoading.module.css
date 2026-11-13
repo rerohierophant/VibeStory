@@ -1,0 +1,35 @@
+.preview {
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--vibe-accent) 28%, transparent), transparent 75%),
+    var(--vibe-accent-ink);
+}
+
+.track {
+  stroke: var(--vibe-accent-soft);
+  opacity: 0.38;
+}
+
+.trace {
+  stroke-dasharray: 26 110;
+  stroke-dashoffset: -38;
+  filter: drop-shadow(0 0 4px var(--vibe-accent));
+}
+
+.queued {
+  opacity: 0.65;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .trace {
+    animation: sweep 2.4s -0.65s linear infinite;
+  }
+
+  .queued .trace {
+    animation-duration: 3.6s;
+  }
+}
+
+@keyframes sweep {
+  0% { stroke-dashoffset: 26; opacity: 0; }
+  9%, 72% { opacity: 1; }
+  85%, 100% { stroke-dashoffset: -100; opacity: 0; }
+}

@@ -3,6 +3,8 @@ package com.vibestory.task;
 import java.sql.DriverManager;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
+import org.jooq.DSLContext;
+import org.jooq.impl.DSL;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -15,6 +17,18 @@ abstract class PostgresSupport {
     private static String url;
     private static String username;
     private static String password;
+
+    void resetDatabase(DSLContext db) {
+        var tables = db.fetch("""
+            select schemaname, tablename from pg_tables
+            where schemaname=current_schema() and tablename<>'flyway_schema_history'
+            order by tablename
+            """).map(row -> DSL.name(row.get("schemaname", String.class), row.get("tablename", String.class)));
+        if (tables.isEmpty() || !SCHEMA.equals(tables.getFirst().first()))
+            throw new IllegalStateException("只能清理隔离的测试 schema");
+        String names = tables.stream().map(db::render).collect(java.util.stream.Collectors.joining(", "));
+        db.execute("truncate table " + names + " restart identity");
+    }
 
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry properties) {
